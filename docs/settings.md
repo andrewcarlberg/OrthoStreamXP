@@ -104,6 +104,9 @@ Most aerial photos are taken in summer.
   
   Conifers, roofs, roads and water keep their colours, and snow is left to X-Plane's weather.
 - **Season:** *Automatic* follows X-Plane's date and the place; a new date takes effect from the next flight. You can also force one season everywhere: *Early spring*, *Spring*, *Summer* (the pictures as they are), *Early autumn*, *Autumn*, *Late autumn* or *Winter, without snow*.
+- **Season: Satellite** also follows X-Plane's date. Trees keep the calendar's colours and times, but **grass and fields** look as green as NASA's satellites saw the place in that part of the last year, compared with its greenest month. So they stay green through a mild Atlantic or Mediterranean winter, dry out in a dry summer, and turn straw-coloured in the tropics' dry season, where the calendar shows nothing or the opposite. A snowy or ploughed winter rests fully, as with the calendar.
+
+  The satellites see the country around a place at about 4 km, so a whole area changes together, not each field on its own. Towns, rock and sand, which are never very green, keep the calendar. OrthoStreamXP downloads about 2 MB once a year for each area of about 500 km, the first time you fly there, and keeps it with the low-zoom base. Where it has no satellite data (offline, before the first download), it uses the calendar. The colour preview uses only what is already downloaded.
 - **Strength:** how far the colours move towards the season. 100 % is the full change.
 
 ### Exposure

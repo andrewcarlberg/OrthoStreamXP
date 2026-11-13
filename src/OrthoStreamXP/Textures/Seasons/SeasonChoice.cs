@@ -3,10 +3,14 @@ using System.Collections.Concurrent;
 
 namespace OrthoStreamXP.Textures;
 
-/// <summary>A season chosen by hand instead of X-Plane's date.</summary>
+/// <summary>
+/// How the season is chosen: by X-Plane's date (<see cref="Auto"/>), by X-Plane's date with each place's grass and fields
+/// as its satellite record shows them (<see cref="Satellite"/>), or by hand, the same everywhere.
+/// </summary>
 internal enum SeasonChoice
 {
     Auto,
+    Satellite,
     EarlySpring,
     Spring,
     Summer,
