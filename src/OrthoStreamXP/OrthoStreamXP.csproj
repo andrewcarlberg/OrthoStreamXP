@@ -42,6 +42,8 @@
     <Resource Include="orthostreamxp.png" />
     <!-- City names for the maps: Natural Earth's populated places (public domain). -->
     <EmbeddedResource Include="Gui\Map\cities.csv" LogicalName="OrthoStreamXP.cities.csv" />
+    <!-- The colours of NASA GIBS's vegetation index pictures (its colour map MODIS_L3_NDVI), for the seasons' satellite record. -->
+    <EmbeddedResource Include="Textures\Vegetation\ndvi-colormap.xml" LogicalName="OrthoStreamXP.ndvi-colormap.xml" />
     <!-- WPF projects leave these out of the implicit usings; the engine uses them everywhere. -->
     <Using Include="System.IO" />
     <Using Include="System.Net.Http" />

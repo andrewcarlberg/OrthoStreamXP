@@ -28,7 +28,7 @@ Traditional photo scenery often requires downloading and building large areas be
 - **Simple quality settings** — choose Balanced, Sharp, Ultra, or Extra without learning dozens of technical parameters.
 - **Settings that adapt to your setup** — test your connection before the first flight to get a recommended preset, and after a sufficiently long flight, get recommendations based on how the scenery performed on your PC and internet connection. You decide whether to apply them.
 - **Even colours** — optionally soften the patchwork look where neighbouring photos were taken on different days, so a grey, hazy patch stands out less.
-- **Seasonal colours** — optionally give summer imagery a more autumnal or winter appearance, based on the simulated date and location.
+- **Seasonal colours** — optionally give summer imagery a more autumnal or winter appearance, based on the simulated date and location, with grass and fields optionally coloured by NASA's satellite record of how green each place really was.
 - **Clean photos up close** — X-Plane's procedural grass and dirt speckles are kept off the aerial photos by default, or faded to the strength you like, without changing your scenery packages.
 - **Towns lit at night** — optionally give the photo scenery street lamps and the light of the houses along X-Plane's roads, so towns glow after dark as on X-Plane's own scenery. You can also skip the detailed photos at night to save downloads, keeping the lights.
 - **Exposure and a live preview** — tone down photos that look too bright next to X-Plane's own scenery, and see any colour change on a photo from your cache before you fly.
@@ -116,6 +116,8 @@ Enable **Seasons** to adjust the appearance of vegetation and fields according t
 - **Winter:** deciduous trees appear bare, while fields shift towards brown and olive.
 
 Water, roads, buildings, rock, and sand retain their original colours. Seasonal colouring does not generate snow; snow remains part of X-Plane's weather.
+
+Choose **Satellite** as the season to colour the grass and fields by NASA's satellite record of the last year instead of the calendar alone: Atlantic and Mediterranean coasts stay green in a mild winter, fields dry out in a dry summer, and the tropics show their dry season. Trees keep the calendar. It downloads about 2 MB once a year for each area of about 500 km you fly over.
 
 ## Known limitations
 

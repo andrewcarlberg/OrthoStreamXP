@@ -107,10 +107,21 @@ internal sealed class ColourPreview : IDisposable
     private ushort[]? Season(TextureName name, SeasonOptions options, List<string> notes)
     {
         string dayFile = Path.Join(_history, SeasonClock.DayFileName);
-        var clock = new SeasonClock(options, dayFile);
-        string when = options.Choice == SeasonChoice.Auto
+        // The satellite record as the flights kept it: nothing is downloaded.
+        using ObservedSeasons? observed = options.Choice == SeasonChoice.Satellite
+            ? new ObservedSeasons(new VegetationSource(Path.Join(_cache, TileStore.FolderName, VegetationSource.FolderName), TimeProvider.System, download: false), TimeSpan.FromSeconds(5))
+            : null;
+        var clock = new SeasonClock(options, dayFile, observed);
+        string when = options.FollowsDate
             ? $"Season of {SeasonClock.Describe(clock.Day)} ({(File.Exists(dayFile) ? "the last flight's date" : "today")}) here"
             : $"Season: {SeasonModel.Names.First(n => n.Value == options.Choice).Key.Replace('-', ' ')}";
+        if (observed is not null)
+        {
+            var (lat, lon) = name.Center;
+            notes.Add(observed.YearAt(lat, lon) is { } year
+                ? $"Satellite record here on {SeasonClock.Describe(clock.Day)}: {ObservedSeason.Describe(year, clock.Day)}"
+                : "No satellite record of this place yet (it is downloaded on the first flight there): the calendar's season");
+        }
         ushort[]? table = clock.TableFor(name);
         notes.Add(table is null ? $"{when}: the photo as it is" : FormattableString.Invariant($"{when}, {options.Strength * 100:0} %"));
         return table;

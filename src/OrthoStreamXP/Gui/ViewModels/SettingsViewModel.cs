@@ -197,6 +197,7 @@ internal sealed class SettingsViewModel : ObservableObject, IPage
     public IReadOnlyList<Choice> SeasonChoices { get; } =
     [
         new Choice("Automatic: X-Plane's date and the place", "auto"),
+        new Choice("Satellite: grass and fields as they really were", "satellite"),
         new Choice("Early spring", "early-spring"),
         new Choice("Spring", "spring"),
         new Choice("Summer (the pictures as they are)", "summer"),

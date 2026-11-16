@@ -410,7 +410,8 @@
                                 </Grid.ColumnDefinitions>
                                 <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
                                     <TextBlock Text="Season" />
-                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" Text="Automatic follows the date of your flight in X-Plane; a new date shows from the next flight." />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Text="Automatic follows the date of your flight in X-Plane; a new date shows from the next flight. Satellite follows it too, but colours the grass and fields as green as NASA's satellite pictures of the last year show each place: coasts stay green in a mild winter and fields dry out in a dry summer. Trees keep the calendar. It downloads about 2 MB for each area of 500 km, once a year." />
                                 </StackPanel>
                                 <ComboBox Grid.Column="1" Width="300" VerticalAlignment="Center" ItemsSource="{Binding SeasonChoices}" DisplayMemberPath="Label"
                                           SelectedItem="{Binding Season}" AutomationProperties.Name="Season" />

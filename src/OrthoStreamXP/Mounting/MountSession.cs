@@ -29,6 +29,8 @@ internal sealed class MountSession : IDisposable
     private AircraftPositionListener? _listener;
     private ReadLog? _readLog;
     private SeasonClock? _seasons;
+    /// <summary>The satellite record the grass and fields are coloured by, with season = satellite.</summary>
+    private ObservedSeasons? _observed;
     private ColourMatcher? _colours;
     /// <summary>The night textures' painting, shared by every package.</summary>
     private NightPainting? _nightPainting;
@@ -117,9 +119,12 @@ internal sealed class MountSession : IDisposable
         if (s.ReadLog) _readLog = ReadLog.Start(AppPaths.Logs);
         if (s.Seasons.On && s.Providers is not null)
         {
-            _seasons = new SeasonClock(s.Seasons, Path.Join(AppPaths.History, SeasonClock.DayFileName));
+            _observed = s.Seasons.Choice == SeasonChoice.Satellite ? StartSatelliteSeasons(s) : null;
+            _seasons = new SeasonClock(s.Seasons, Path.Join(AppPaths.History, SeasonClock.DayFileName), _observed);
             Log.Step($"Seasons: on at {s.Seasons.Strength:P0}, " +
-                     (s.Seasons.Choice == SeasonChoice.Auto ? $"by X-Plane's date (until it sends one: {SeasonClock.Describe(_seasons.Day)})" : $"set to {s.Seasons.Choice} everywhere"));
+                     (!s.Seasons.FollowsDate ? $"set to {s.Seasons.Choice} everywhere"
+                         : $"by X-Plane's date (until it sends one: {SeasonClock.Describe(_seasons.Day)})" +
+                           (_observed is null ? "" : ", grass and fields by each place's satellite record")));
         }
         if (s.MatchColours && store is not null && builder is not null)
         {
@@ -167,6 +172,7 @@ internal sealed class MountSession : IDisposable
             Action<double, double>? onPosition = null;
             foreach (PackageMount mount in _mounts)
                 if (mount.LoadAhead is { } prefetcher) onPosition += prefetcher.OnAircraftPosition;
+            if (_observed is { } observed) onPosition += observed.Prepare;
             SeasonClock? seasons = _seasons;
             ReadLog? readLog = _readLog;
             TileSource? tiles = _tiles;
@@ -178,7 +184,10 @@ internal sealed class MountSession : IDisposable
                     readLog?.Camera(camera, tiles?.TilesDownloaded, tiles?.BytesDownloaded);
                 },
                 streaming ? model.UseScreen : null,
-                seasons is null ? null : day => seasons.OfferDate(day, _view.Starting), _daylight);
+                seasons is null ? null : day =>
+                {
+                    if (seasons.OfferDate(day, _view.Starting)) ReloadForTheDate(day);
+                }, _daylight);
         }
 
         if (s.CustomScenery is not null && s.UpdateSceneryPacks)
@@ -254,6 +263,7 @@ internal sealed class MountSession : IDisposable
                     Log.Info($"{label}Night lights: {painted} paintings in {time.TotalSeconds:F1} s ({kept / 1048576.0:F0} MB written to the cache, compressed), {dark} places without lights");
             }
             Log.Info(_cpu.Summary());
+            if (_seasons?.Summary() is { } seasons) Log.Info(seasons);
             ReviewFlight();
             ReportFlight();
         }
@@ -285,6 +295,7 @@ internal sealed class MountSession : IDisposable
         _listener?.Dispose();
         foreach (PackageMount mount in _mounts) mount.Dispose();
         _nightPainting?.Dispose();
+        _observed?.Dispose();
         _tiles?.Dispose();
         _readLog?.Dispose();
         _summaries.Dispose();
@@ -302,6 +313,37 @@ internal sealed class MountSession : IDisposable
             Log.Warning("Night lights: on, but no overlay package with X-Plane's roads was found (install a region on the Packages page); the photo tiles stay dark at night");
         return _nightPainting = new NightPainting(new NightPainter(roads), Math.Clamp(Environment.ProcessorCount / 4, 1, 4));
     }
+
+    /// <summary>
+    /// X-Plane's date came after it had read the scenery for another one (the last flight's): asks X-Plane to load the
+    /// scenery again, so the area already loaded shows the season of its date too.
+    /// </summary>
+    private void ReloadForTheDate(int day)
+    {
+        if (_listener?.SendCommand(XPlaneUdp.ReloadSceneryCommand) != true) return;
+        Log.Step($"Seasons: the scenery X-Plane had already loaded was coloured for the last flight's date; X-Plane is asked to reload it for {SeasonClock.Describe(day)}");
+    }
+
+    /// <summary>
+    /// The satellite record the grass and fields are coloured by: NASA's monthly vegetation index, kept in the low-zoom base folder;
+    /// null with synthetic imagery (tests), which never goes online.
+    /// </summary>
+    private static ObservedSeasons? StartSatelliteSeasons(MountSettings s)
+    {
+        if (s.Providers![0].Name == ImageryProvider.Synthetic)
+        {
+            Log.Info("Seasons: synthetic imagery; the season goes by the calendar, without the satellite record");
+            return null;
+        }
+        var source = new VegetationSource(Path.Join(s.Cache, TileStore.FolderName, VegetationSource.FolderName), TimeProvider.System);
+        source.RemoveOldMonths();
+        IReadOnlyList<DateOnly> year = source.Year();
+        Log.Info($"Seasons: satellite record from NASA GIBS ({VegetationSource.Layer}), {year[0]:MMMM yyyy} to {year[^1]:MMMM yyyy}, kept in {source.Folder}");
+        return new ObservedSeasons(source, ObservedSeasonsWait);
+    }
+
+    /// <summary>How long the first texture of an area waits for its satellite record (once an area, about 2 MB).</summary>
+    private static readonly TimeSpan ObservedSeasonsWait = TimeSpan.FromSeconds(5);
 
     /// <summary>
     /// The sun the streaming follows to skip the photos at night, or null when it cannot: the photos are built whole
