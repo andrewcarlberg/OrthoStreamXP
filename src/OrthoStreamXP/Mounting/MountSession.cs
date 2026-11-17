@@ -111,7 +111,7 @@ internal sealed class MountSession : IDisposable
         var streamingOptions = new StreamingOptions(s.NearWait, s.MaxWait, BuildMemoryBytes: buildMemory, BuildTiles: s.BuildTiles);
 
         if (_tiles is not null)
-            Log.Info($"Texture generation: provider={_tiles.Provider}{(s.Providers!.Count > 1 ? " (tried in this order)" : "")}, DDS build workers={s.DdsBuildWorkers}{(s.Packages.Count > 1 ? " per package" : "")}, " +
+            Log.Info($"Texture generation: BC1 encoder={Dds.Encoder}, provider={_tiles.Provider}{(s.Providers!.Count > 1 ? " (tried in this order)" : "")}, DDS build workers={s.DdsBuildWorkers}{(s.Packages.Count > 1 ? " per package" : "")}, " +
                      $"download workers={_tiles.DownloadWorkers} (timeout {s.DownloadTimeout:0.#}s x {s.DownloadAttempts} attempts), encoder CPU workers={Math.Clamp(s.EncoderWorkers, 1, 16)}, " +
                      (streaming ? "mip streaming on" : $"mip streaming off, background={s.Background}"));
         if (streaming)

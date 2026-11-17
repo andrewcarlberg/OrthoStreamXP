@@ -134,7 +134,7 @@ OrthoStreamXP is currently in beta. Please keep the following in mind:
 
 ## Imagery and licensing
 
-OrthoStreamXP is free software released under the **GNU General Public License v3 (GPL-3.0)**.
+OrthoStreamXP is free software released under the **GNU General Public License v3 (GPL-3.0)**. It includes Intel's [ISPC Texture Compressor](https://github.com/GameTechDev/ISPCTextureCompressor) (MIT) to encode textures.
 
 The aerial imagery is provided by external services, including Bing Maps, Esri World Imagery, and Geoportal for Poland. The imagery is not part of the OrthoStreamXP software and remains subject to each provider's terms of use.
 

@@ -7,7 +7,7 @@ namespace OrthoStreamXP.Scenery;
 /// <summary>
 /// Serves photo DDS textures the way X-Plane reads them: the header at once, then each read's byte range mapped to
 /// mip levels, answered with the best data at that moment. Real data is fetched at exactly the zoom the level
-/// needs (level 4 of a ZL16 texture is one ZL12 tile, not 256 ZL16 tiles). How long a read may wait depends on its
+/// needs (level 3 of a ZL16 texture is four ZL13 tiles, not 256 ZL16 tiles). How long a read may wait depends on its
 /// band: next to the aircraft it waits for real imagery (long at the start of a flight, which X-Plane will not
 /// read again while the aircraft is parked), in the middle distance briefly, and far away not at all. A read
 /// that cannot wait gets a stand-in, stretched from the best coarser imagery at hand (the low-zoom base, or one

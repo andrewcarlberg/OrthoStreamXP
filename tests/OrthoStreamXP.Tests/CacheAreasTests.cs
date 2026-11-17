@@ -112,6 +112,21 @@ public sealed class CacheAreasTests : IDisposable
     }
 
     [Fact]
+    public void A_base_made_before_zoom_13_still_pictures_the_area_from_its_zoom_12_tiles()
+    {
+        using var tile = new SkiaSharp.SKBitmap(256, 256);
+        tile.Erase(new SkiaSharp.SKColor(30, 150, 70));
+        using SkiaSharp.SKData png = tile.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+        var store = new TileStore(Path.Join(Cache, TileStore.FolderName));
+        var (x, y) = Tiles.LatLonToTile(51.5, 17.5, 12);
+        store.Save(x, y, 12, png.ToArray());
+
+        byte[] picture = CacheAreas.Picture(Cache, new AreaName(51, 17), 48, TestContext.Current.CancellationToken)!;
+
+        Assert.Equal((70, 150, 30, 255), (picture[(24 * 48 + 24) * 4], picture[(24 * 48 + 24) * 4 + 1], picture[(24 * 48 + 24) * 4 + 2], picture[(24 * 48 + 24) * 4 + 3]));
+    }
+
+    [Fact]
     public void A_flight_report_sums_up_the_route_and_keeps_the_earlier_ones()
     {
         ReportSample[] samples =

@@ -12,8 +12,12 @@ namespace OrthoStreamXP.Textures;
 /// </summary>
 internal static class ColourMatch
 {
-    /// <summary>The usual relation of a photo to the base where nothing is known of its area yet (Bing around Wrocław, log per channel).</summary>
-    public static readonly ColourGain DefaultTarget = new(-0.30f, -0.20f, -0.21f);
+    /// <summary>
+    /// The usual relation of a photo to the base where nothing is known of its area yet (log per channel): none. The zoom
+    /// 13 base is the photos' own imagery, a step or two of 255 off their mean colour at 20 places (the zoom 12 base was
+    /// Bing's lighter, yellower other imagery, which needed (-0.30, -0.20, -0.21) around Wrocław).
+    /// </summary>
+    public static readonly ColourGain DefaultTarget = new(0f, 0f, 0f);
 
     /// <summary>The largest change, either way (log): about x0.6 to x1.65, so a real difference is never over-corrected.</summary>
     public const float MaxChange = 0.5f;

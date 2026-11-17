@@ -190,6 +190,26 @@ internal sealed class TextureBuilder(TileSource tiles, int encoderWorkers)
 
     private static int Shift(int value, int shift) => shift >= 0 ? value << shift : value >> -shift;
 
+    /// <summary>Zooms up a missing tile may be made from.</summary>
+    private const int MaxParentDepth = 4;
+
+    /// <summary>
+    /// A tile no provider has, made from the nearest coarser tile at hand (RAM or the low-zoom base; nothing is
+    /// downloaded): its part of that tile, stretched. Never coarser than the base's zoom 13, Bing's coarser zooms being
+    /// other imagery. Null when there is none.
+    /// </summary>
+    private (byte[] Pixels, int Zoom)? FromParent(int x, int y, int zoom)
+    {
+        for (int depth = 1; depth <= MaxParentDepth && zoom - depth >= TileStore.DefaultMaxZoom; depth++)
+        {
+            if (tiles.TryGetStored(x >> depth, y >> depth, zoom - depth) is not { } parent) continue;
+            int part = Tiles.TilePx >> depth, mask = (1 << depth) - 1;
+            byte[] crop = Crop(parent, Tiles.TilePx, (x & mask) * part, (y & mask) * part, part);
+            return (Images.ResizeBicubic(crop, part, part, Tiles.TilePx, Tiles.TilePx, 1), zoom - depth);
+        }
+        return null;
+    }
+
     private static byte[] Crop(byte[] tile, int tileSize, int left, int top, int size)
     {
         byte[] part = new byte[size * size * 3];
@@ -201,11 +221,23 @@ internal sealed class TextureBuilder(TileSource tiles, int encoderWorkers)
     private async Task CopyTileAsync(int column, int row, int originX, int originY, int zoom, FetchTicket ticket,
         byte[] destination, int width, int tilePx, TileStats stats)
     {
-        byte[] pixels = await tiles.GetTileAsync(originX + column, originY + row, zoom, ticket, stats).ConfigureAwait(false);
+        int tileX = originX + column, tileY = originY + row;
+        byte[] pixels;
+        try
+        {
+            pixels = await tiles.GetTileAsync(tileX, tileY, zoom, ticket, stats).ConfigureAwait(false);
+        }
+        catch (TileNotAvailableException) when (FromParent(tileX, tileY, zoom) is { } parent)
+        {
+            // No provider has this tile (a network failure is not caught: the texture is built again later instead).
+            pixels = parent.Pixels;
+            Interlocked.Increment(ref stats.FromParents);
+            Log.Detail($"Tile {zoom}/{tileX}/{tileY} has no imagery: made from its zoom {parent.Zoom} tile");
+        }
         int px = Tiles.TilePx;
         while (px > tilePx)
         {
-            pixels = Images.BoxHalf(pixels, px, px, 1);
+            pixels = MipFilter.Half(pixels, px, px, 1); // in linear light, as the mip levels below it
             px >>= 1;
         }
         int rowBytes = px * 3, left = column * px, top = row * px;

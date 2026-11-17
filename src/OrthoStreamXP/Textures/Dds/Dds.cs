@@ -10,7 +10,7 @@ internal static class Dds
 {
     public const int HeaderSize = 128;
 
-    /// <summary>Encodes an RGB image and its 2x2-averaged mip chain into a complete DXT1 .dds file.</summary>
+    /// <summary>Encodes an RGB image and its mip chain (2x2 averages in linear light, <see cref="MipFilter"/>) into a complete DXT1 .dds file.</summary>
     public static byte[] Encode(byte[] rgb, int width, int height, int workers, out double mipmapSeconds, out double bc1Seconds)
     {
         int levels = 1;
@@ -31,7 +31,7 @@ internal static class Dds
             if (level > 0)
             {
                 long mipStarted = Stopwatch.GetTimestamp();
-                current = Images.BoxHalf(current, w, h, workers);
+                current = MipFilter.Half(current, w, h, workers);
                 w = Math.Max(1, w >> 1);
                 h = Math.Max(1, h >> 1);
                 mipmapSeconds += Stopwatch.GetElapsedTime(mipStarted).TotalSeconds;
@@ -45,7 +45,7 @@ internal static class Dds
 
     /// <summary>
     /// The BC1 data of mip levels <paramref name="firstMip"/> to the last of a square texture, as they follow each other
-    /// in the file: <paramref name="rgb"/> is level <paramref name="firstMip"/> itself, the smaller ones are 2x2 averages.
+    /// in the file: <paramref name="rgb"/> is level <paramref name="firstMip"/> itself, the smaller ones are 2x2 averages in linear light (<see cref="MipFilter"/>).
     /// </summary>
     public static byte[] EncodeChain(byte[] rgb, DdsLayout layout, int firstMip, int workers)
     {
@@ -66,7 +66,7 @@ internal static class Dds
                     byte[] next = (mip - firstMip) % 2 == 1
                         ? even ??= ArrayPool<byte>.Shared.Rent(halfBytes)
                         : odd ??= ArrayPool<byte>.Shared.Rent(halfBytes);
-                    Images.BoxHalfInto(current, size * 2, size * 2, next, workers);
+                    MipFilter.HalfInto(current, size * 2, size * 2, next, workers);
                     current = next;
                 }
                 offset += EncodeBC1(current, size, size, output, offset, workers);
@@ -159,11 +159,20 @@ internal static class Dds
         static void Put(Span<byte> data, int offset, uint value) => BinaryPrimitives.WriteUInt32LittleEndian(data[offset..], value);
     }
 
+    /// <summary>The BC1 encoder in use: Intel's ISPC where its DLL loads, else the program's own range fit.</summary>
+    public static string Encoder => IspcBc1.IsAvailable ? "ispc" : "range-fit";
+
+    /// <summary>BC1 blocks of an RGB image, by <see cref="IspcBc1"/> or, without it, <see cref="EncodeRangeFit"/>. Returns the bytes written.</summary>
+    private static int EncodeBC1(byte[] input, int width, int height, byte[] output, int offset, int workers) =>
+        IspcBc1.IsAvailable
+            ? IspcBc1.Encode(input, width, height, output, offset, workers)
+            : EncodeRangeFit(input, width, height, output, offset, workers);
+
     /// <summary>
-    /// Fast range-fit BC1: endpoints are the per-block min/max inset by 1/16 of the range,
-    /// each pixel takes the nearest of the four palette colours. Returns the bytes written.
+    /// Fast range-fit BC1, the fallback when ISPC is missing: endpoints are the per-block min/max inset by 1/16 of the
+    /// range, each pixel takes the nearest of the four palette colours. Returns the bytes written.
     /// </summary>
-    private static int EncodeBC1(byte[] input, int width, int height, byte[] output, int offset, int workers)
+    internal static int EncodeRangeFit(byte[] input, int width, int height, byte[] output, int offset, int workers)
     {
         int blocksX = Math.Max(1, (width + 3) / 4), blocksY = Math.Max(1, (height + 3) / 4);
         void BlockRow(int by)

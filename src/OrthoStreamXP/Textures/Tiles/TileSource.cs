@@ -8,6 +8,8 @@ namespace OrthoStreamXP.Textures;
 internal sealed class TileStats
 {
     public int Hits, Misses, Calls, Fallbacks;
+    /// <summary>Tiles no provider has, made from a coarser tile at hand (<see cref="TextureBuilder"/>).</summary>
+    public int FromParents;
     /// <summary>Bytes of the tiles downloaded for the build (every server answer, as the session's own count).</summary>
     public long Bytes;
     private long _downloadTicks;
@@ -323,6 +325,7 @@ internal sealed class TileSource : IDisposable
             Exception? last = null;
             byte[]? placeholder = null; // a "no imagery here" picture, used when no provider has the tile
             var failures = new List<string>();
+            bool forGood = true; // every provider said "not here" (no network trouble): asking again changes nothing
             for (int p = 0; p < _providers.Count; p++)
             {
                 ImageryProvider provider = _providers[p];
@@ -376,11 +379,13 @@ internal sealed class TileSource : IDisposable
                     }
                     if (attempt < _attempts - 1) await Task.Delay(Math.Min(2000, 250 << attempt)).ConfigureAwait(false);
                 }
+                if (last is null || !IsDefinitive(last)) forGood = false;
                 failures.Add(_providers.Count > 1 ? $"{provider.Name}: {last?.Message}" : last?.Message ?? "");
             }
             if (placeholder is not null) return placeholder;
             Interlocked.Increment(ref _failedTiles);
-            throw new IOException($"Failed downloading tile {zoom}/{x}/{y}: {string.Join("; ", failures)}", last);
+            string message = $"Failed downloading tile {zoom}/{x}/{y}: {string.Join("; ", failures)}";
+            throw forGood ? new TileNotAvailableException(message, last) : new IOException(message, last);
         }
         finally
         {

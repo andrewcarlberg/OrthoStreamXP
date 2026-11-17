@@ -27,9 +27,17 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Image decoding only (JPEG/PNG tiles); resizing and BC1 encoding are our own code. -->
+    <!-- Image decoding only (JPEG/PNG tiles); resizing is our own code, BC1 encoding Intel's ISPC (below). -->
     <PackageReference Include="SkiaSharp" Version="4.153.1" />
     <PackageReference Include="Velopack" Version="1.2.161" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Intel's ISPC Texture Compressor (MIT), the BC1 encoder (Textures\Dds\IspcBc1.cs): built by native\ispc_texcomp\build.ps1.
+      It sits next to orthostreamxp.exe, outside the single-file bundle, where the program loads it by path.
+    -->
+    <None Include="..\..\native\ispc_texcomp\ispc_texcomp.dll" Link="ispc_texcomp.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
   </ItemGroup>
 
   <ItemGroup>
@@ -74,7 +82,7 @@
   </ItemGroup>
 
   <!--
-    Keep the publish folder to the exe, WinFsp's managed DLL and the example settings: no SkiaSharp native
+    Keep the publish folder to the exe, WinFsp's managed DLL, ispc_texcomp.dll and the example settings: no SkiaSharp native
     symbols (~96 MB) or WinFsp API docs. winfsp-msil.dll stays a separate file because it checks its own
     file version at start-up, which fails inside a single-file bundle (its location is empty there).
   -->

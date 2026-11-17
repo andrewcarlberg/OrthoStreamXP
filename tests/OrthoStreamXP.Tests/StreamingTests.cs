@@ -28,12 +28,16 @@ public sealed class StreamingTests : IDisposable
         ViewTracker View, TextureStreamer Streamer);
 
     /// <param name="level">-3: ZL16 textures are 1024 px from zoom 14, their base level 2 (zoom 12). -2: 2048 px from zoom 15, base level 3.</param>
+    /// <remarks>
+    /// The engine takes its base zoom from the store; these tests keep a zoom 12 base (not the program's 13), so the small
+    /// 1024 px textures still have a near, a middle and a far band apart. The zoom 13 base has tests of its own below.
+    /// </remarks>
     private Setup Streaming(int level = -3, double maxWait = 0.2, Func<int, TimeSpan>? delay = null, Setup? sharing = null, int detailedBuilds = 16,
         long buildTiles = TextureStreamer.DefaultBuildTiles, Func<Uri, Task?>? hold = null, Daylight? nightPause = null, ReadLog? readLog = null,
         AltitudeDetail? altitude = null)
     {
         FakeTileServer server = sharing?.Server ?? new FakeTileServer(delay: delay, hold: hold);
-        TileSource tiles = sharing?.Tiles ?? Track(new TileSource("test", FakeTileServer.Template, 32, handler: server) { Store = new TileStore(_tree.PathOf("base")) });
+        TileSource tiles = sharing?.Tiles ?? Track(new TileSource("test", FakeTileServer.Template, 32, handler: server) { Store = new TileStore(_tree.PathOf("base"), maxZoom: 12) });
         var plan = new TexturePlan(level, TextureSizing.MaxSize);
         var roots = new SceneryRoots(_tree.PathOf("source"), _tree.PathOf("cache"), null, plan);
         Directory.CreateDirectory(roots.Source);
@@ -127,7 +131,7 @@ public sealed class StreamingTests : IDisposable
         Assert.Equal(dds.Length, layout.Length);
         Assert.Equal(dds[..Dds.HeaderSize], layout.Header.ToArray());
         Assert.Equal(dds[Dds.HeaderSize..], Dds.EncodeChain(rgb, layout, 0, workers: 1));
-        Assert.Equal(dds[(int)layout.Offset(3)..], Dds.EncodeChain(Images.BoxHalf(Images.BoxHalf(Images.BoxHalf(rgb, 64, 64, 1), 32, 32, 1), 16, 16, 1), layout, 3, 1));
+        Assert.Equal(dds[(int)layout.Offset(3)..], Dds.EncodeChain(MipFilter.Half(MipFilter.Half(MipFilter.Half(rgb, 64, 64, 1), 32, 32, 1), 16, 16, 1), layout, 3, 1));
         Assert.Equal(0, layout.MipAt(Dds.HeaderSize));
         Assert.Equal(0, layout.MipAt(layout.Offset(1) - 1));
         Assert.Equal(1, layout.MipAt(layout.Offset(1)));
@@ -212,6 +216,19 @@ public sealed class StreamingTests : IDisposable
 
         var coarse = new StreamedTexture(Texture(), name, new TexturePlan(-2, TextureSizing.MaxSize), 12);
         Assert.Equal((2048, 15, 3), (coarse.Layout.Size, coarse.ZoomFor(0), coarse.BaseMip));
+    }
+
+    [Fact]
+    public void The_programs_zoom_13_base_is_one_level_sharper()
+    {
+        TextureName name = TextureName.TryParseFile(Stem + ".dds", out var parsed) ? parsed : default;
+        // Extra and Ultra: 4096 px from zoom 17, the base level 3 (four ZL13 tiles, 512 px) instead of 4.
+        var extra = new StreamedTexture(Texture(), name, new TexturePlan(1), TileStore.DefaultMaxZoom);
+        Assert.Equal((4096, 13, 3), (extra.Layout.Size, extra.ZoomFor(3), extra.BaseMip));
+        // Balanced: 1024 px from zoom 15, the base level 1, inside the near band: a near read of it is the base.
+        var balanced = new StreamedTexture(Texture(), name, new TexturePlan(-2), TileStore.DefaultMaxZoom);
+        Assert.Equal((1024, 13, 1), (balanced.Layout.Size, balanced.ZoomFor(1), balanced.BaseMip));
+        Assert.Equal(Band.Near, TextureStreamer.BandOf(balanced, balanced.BaseMip));
     }
 
     // ---------------------------------------------------------------- reads
@@ -1098,21 +1115,22 @@ public sealed class StreamingPartsTests : IDisposable
     }
 
     [Fact]
-    public async Task The_low_zoom_base_keeps_tiles_up_to_zoom_12_for_later_sessions()
+    public async Task The_low_zoom_base_keeps_tiles_up_to_zoom_13_for_later_sessions()
     {
         var server = new FakeTileServer();
         var store = new TileStore(_tree.PathOf("base"));
+        Assert.Equal(13, store.MaxZoom); // Bing's zoom 12 is other, lighter imagery: the base starts at 13
         using (var tiles = new TileSource("test", FakeTileServer.Template, 4, handler: server) { Store = store })
         {
-            await tiles.GetTileAsync(10, 20, 12, false, new TileStats());
             await tiles.GetTileAsync(10, 20, 13, false, new TileStats());
+            await tiles.GetTileAsync(10, 20, 14, false, new TileStats());
         }
         using var later = new TileSource("test", FakeTileServer.Template, 4, handler: server) { Store = store };
-        Assert.NotNull(later.TryGetStored(10, 20, 12));
-        Assert.Null(later.TryGetStored(10, 20, 13)); // finer zooms are not kept
-        byte[] tile = await later.GetTileAsync(10, 20, 12, false, new TileStats());
+        Assert.NotNull(later.TryGetStored(10, 20, 13));
+        Assert.Null(later.TryGetStored(10, 20, 14)); // finer zooms are not kept
+        byte[] tile = await later.GetTileAsync(10, 20, 13, false, new TileStats());
         Assert.Equal([40, 90, 160], tile[..3]);
-        Assert.Equal(2, server.Requests.Count); // the zoom 12 tile came from disk the second time
+        Assert.Equal(2, server.Requests.Count); // the zoom 13 tile came from disk the second time
     }
 
     [Fact]

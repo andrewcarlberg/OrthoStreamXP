@@ -40,7 +40,7 @@ internal sealed class StreamedTexture
     public double Lat { get; }
     public double Lon { get; }
     public double SizeM { get; }
-    /// <summary>The first level the low-zoom base covers: one zoom 12 tile for a ZL16 texture.</summary>
+    /// <summary>The first level the low-zoom base covers: four zoom 13 tiles for a ZL16 texture.</summary>
     public int BaseMip { get; }
 
     /// <summary>

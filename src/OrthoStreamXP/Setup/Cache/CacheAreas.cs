@@ -159,8 +159,9 @@ internal static class CacheAreas
     }
 
     /// <summary>
-    /// Paints a place from the low-zoom base's tiles (zoom 12: about 11 x 18 tiles a degree at 51°), each decoded at
-    /// 1/8 of its size (1/2 when the picture is finer than that); returns whether it had any.
+    /// Paints a place from the low-zoom base's tiles (zoom 13: about 23 x 36 tiles a degree at 51°), each decoded at
+    /// 1/8 of its size (1/2 when the picture is finer than that); returns whether it had any. Where a zoom 13 tile is
+    /// missing, the zoom 12 one of a base made before zoom 13 is painted instead.
     /// </summary>
     private static bool PaintBase(byte[] bgra, int width, int height, GeoBounds bounds, string cache, CancellationToken cancel)
     {
@@ -175,7 +176,20 @@ internal static class CacheAreas
         }
         // Pixels a tile spans in the picture: at most 32, a 1/8 decode is plenty; more, decode it larger.
         float scale = (TileX(bounds.East) - TileX(bounds.West)) * 32 >= width ? 0.125f : 0.5f;
-        var tiles = new Dictionary<(int, int), (byte[] Rgb, int Width, int Height)?>();
+        var tiles = new Dictionary<(int, int, int), (byte[] Rgb, int Width, int Height)?>();
+        (byte[] Rgb, int Width, int Height)? Tile(int z, int x, int y)
+        {
+            if (tiles.TryGetValue((z, x, y), out var tile)) return tile;
+            try
+            {
+                tile = store.TryRead(x, y, z) is { } encoded ? Images.Decode(encoded, scale) : null;
+            }
+            catch (InvalidDataException)
+            {
+                tile = null;
+            }
+            return tiles[(z, x, y)] = tile;
+        }
         bool any = false;
         for (int py = 0; py < height; py++)
         {
@@ -184,21 +198,15 @@ internal static class CacheAreas
             for (int px = 0; px < width; px++)
             {
                 double tx = TileX(bounds.West + (px + 0.5) / width * (bounds.East - bounds.West));
-                var key = ((int)tx, (int)ty);
-                if (!tiles.TryGetValue(key, out var tile))
+                double x = tx, y = ty;
+                var tile = Tile(zoom, (int)x, (int)y);
+                if (tile is null && zoom > 1)
                 {
-                    try
-                    {
-                        tile = store.TryRead(key.Item1, key.Item2, zoom) is { } encoded ? Images.Decode(encoded, scale) : null;
-                    }
-                    catch (InvalidDataException)
-                    {
-                        tile = null;
-                    }
-                    tiles[key] = tile;
+                    (x, y) = (tx / 2, ty / 2);
+                    tile = Tile(zoom - 1, (int)x, (int)y);
                 }
                 if (tile is not { } t) continue;
-                int sx = Math.Clamp((int)((tx - key.Item1) * t.Width), 0, t.Width - 1), sy = Math.Clamp((int)((ty - key.Item2) * t.Height), 0, t.Height - 1);
+                int sx = Math.Clamp((int)((x - (int)x) * t.Width), 0, t.Width - 1), sy = Math.Clamp((int)((y - (int)y) * t.Height), 0, t.Height - 1);
                 Set(bgra, (py * width + px) * 4, t.Rgb.AsSpan((sy * t.Width + sx) * 3, 3));
                 any = true;
             }

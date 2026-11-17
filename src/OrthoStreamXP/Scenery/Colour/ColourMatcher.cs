@@ -21,7 +21,11 @@ internal enum PictureSource
 /// </summary>
 internal sealed class ColourMatcher
 {
-    public const string FileName = "colour-match.json";
+    /// <summary>
+    /// The areas' relations to the zoom 13 base. Not colour-match.json: that one's were measured against the zoom 12 base
+    /// (other, lighter imagery) and would pull the photos the wrong way; it is left as it was, unread.
+    /// </summary>
+    public const string FileName = "colour-match-13.json";
     /// <summary>Textures measured before an area's own relation is used.</summary>
     public const int LearntFrom = 12;
     private const int MaxTextures = 20_000;

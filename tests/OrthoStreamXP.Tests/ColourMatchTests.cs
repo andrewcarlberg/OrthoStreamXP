@@ -10,8 +10,11 @@ public sealed class ColourMatchTests : IDisposable
     private readonly TempTree _tree = new();
     private static readonly TextureName Wroclaw = new(21840, 35872, "BI", 16);
     private const int Size = 256;
-    /// <summary>The base everywhere, and a photo with the usual relation to it (ColourMatch.DefaultTarget).</summary>
-    private static readonly (int R, int G, int B) BaseColour = (90, 110, 60), UsualPhoto = (65, 89, 47), GreyPhoto = (110, 110, 110);
+    /// <summary>
+    /// The base everywhere, and a photo with the usual relation to it (ColourMatch.DefaultTarget: none, the zoom 13 base
+    /// is the photos' own imagery).
+    /// </summary>
+    private static readonly (int R, int G, int B) BaseColour = (90, 110, 60), UsualPhoto = BaseColour, GreyPhoto = (110, 110, 110);
 
     public void Dispose() => _tree.Dispose();
 
@@ -74,9 +77,9 @@ public sealed class ColourMatchTests : IDisposable
 
         // Moved by what is beyond a usual difference, and the change is capped: much nearer its neighbour, not all the way.
         var grey = Mean(after, Size * 3 / 4, Size);
-        Assert.InRange(grey.R, UsualPhoto.R, 80);
-        Assert.InRange(grey.G, UsualPhoto.G, 97);
-        Assert.InRange(grey.B, UsualPhoto.B, 75);
+        Assert.InRange(grey.R, UsualPhoto.R, 100); // 110 before
+        Assert.InRange(grey.G, UsualPhoto.G - 6, UsualPhoto.G + 6); // as usual already
+        Assert.InRange(grey.B, UsualPhoto.B + 1, 85); // 110 before; the cap keeps it from going all the way
     }
 
     [Fact]
@@ -139,8 +142,19 @@ public sealed class ColourMatchTests : IDisposable
     [Fact]
     public void A_stand_in_from_the_base_gets_the_usual_relation_so_the_photo_does_not_jump_when_it_arrives()
     {
-        TextureColour colour = Matcher().ForBase(Wroclaw)!;
-        Assert.Equal(ColourMatch.DefaultTarget, Assert.Single(colour.Gains));
+        // Nothing learnt of the area: its photos are taken to look like the base, which is left as it is.
+        Assert.Null(Matcher().ForBase(Wroclaw));
+
+        // An area whose photos are darker than the base: the stand-in from the base is made as dark.
+        ColourMatcher learning = Matcher("logs/colour-match.json");
+        byte[] dark = Picture((_, _) => (70, 90, 50));
+        for (int i = 0; i < ColourMatcher.LearntFrom; i++)
+            learning.ForPhoto(Wroclaw with { Row = Wroclaw.Row - 16 * i }, 1, size => (Resize(dark, Size, size), size));
+        learning.Save();
+        ColourMatcher later = Matcher("logs/colour-match.json");
+        TextureColour colour = later.ForBase(Wroclaw)!;
+        Assert.Equal(later.TargetOf(AreaName.Of(Wroclaw)), Assert.Single(colour.Gains));
+        Assert.True(colour.Gains[0].R < -0.1f, $"{colour.Gains[0]}");
     }
 
     [Fact]
@@ -148,7 +162,7 @@ public sealed class ColourMatchTests : IDisposable
     {
         ColourMatcher matcher = Matcher("logs/colour-match.json");
         AreaName area = AreaName.Of(Wroclaw);
-        // Photos here are a little brighter than the default relation says.
+        // Photos here are a little darker than the base, where the default relation has them alike.
         byte[] bright = Picture((_, _) => (80, 100, 55));
         for (int i = 0; i < ColourMatcher.LearntFrom; i++) // northwards, within the same 1° area
             matcher.ForPhoto(Wroclaw with { Row = Wroclaw.Row - 16 * i }, 1, size => (Resize(bright, Size, size), size));
