@@ -9,20 +9,20 @@ namespace OrthoStreamXP.Textures;
 /// wide ZL16 areas are not left much softer than the airports; above level 0 they use 16 + level (Extra +1: zoom 17,
 /// as Ultra, while the airports get zoom 19). Other zooms use zoom + level.
 /// <para>
-/// The size follows the level too: 4096 px at level 0 and above, half per level below (Balanced -2: 1024, Sharp -1:
-/// 2048, Ultra 0 and Extra +1: 4096), the same for ZL16 and ZL18. Below level 0 ZL16 textures download one zoom more
-/// detail than that, and at level +1 ZL18 ones do, shrunk as it arrives: the finer imagery gives a cleaner picture than
-/// the size alone would.
+/// The size is the detail the tiles hold, never shrunk: 4096 px at the file's own zoom (16 x 16 tiles), twice as much
+/// per level finer, half per level coarser. ZL16 textures: Balanced 2048, Sharp 4096, Ultra and Extra 8192; ZL18
+/// textures: Balanced 1024, Sharp 2048, Ultra 4096, Extra 8192. Only a level beyond Extra's, whose detail would pass
+/// <see cref="TextureSizing.MaxSize"/>, is shrunk to it.
 /// </para>
 /// </summary>
 /// <param name="Limit">A size limit instead of the level's own (tests of the streaming engine at full detail).</param>
 internal sealed partial record TexturePlan(int LevelChange, int? Limit = null)
 {
-    /// <summary>Finer than the downloaded 4096 px detail at the file zoom; BuildAsync accepts up to +3.</summary>
+    /// <summary>Levels finer than the file zoom; BuildAsync accepts up to +3.</summary>
     public const int MaxLevel = 3;
 
-    /// <summary>The largest texture at this level.</summary>
-    public int SizeLimit => Limit ?? TextureSizing.LimitFor(LevelChange);
+    /// <summary>The largest texture built: <see cref="TextureSizing.MaxSize"/>, or the explicit limit (tests).</summary>
+    public int SizeLimit => Limit ?? TextureSizing.MaxSize;
 
     /// <summary>The level change applied to a texture of <paramref name="fileZoom"/>.</summary>
     public int LevelFor(int fileZoom) => Math.Clamp(LevelChange + (fileZoom == 16 && LevelChange < 1 ? 1 : 0), -4, MaxLevel);
@@ -30,7 +30,7 @@ internal sealed partial record TexturePlan(int LevelChange, int? Limit = null)
     /// <summary>The zoom its tiles are downloaded at.</summary>
     public int FetchZoom(int fileZoom) => fileZoom + LevelFor(fileZoom);
 
-    /// <summary>Its size in pixels: the downloaded detail, capped by the level's limit, never enlarged.</summary>
+    /// <summary>Its size in pixels: the downloaded detail, capped by the size limit, never enlarged.</summary>
     public int SizeFor(int fileZoom) => Math.Min(TextureSizing.DownloadedDetail(LevelFor(fileZoom)), SizeLimit);
 
     /// <summary>
@@ -89,18 +89,16 @@ internal sealed partial record TexturePlan(int LevelChange, int? Limit = null)
 
 internal static class TextureSizing
 {
-    /// <summary>The largest texture built.</summary>
-    public const int MaxSize = 4096;
+    /// <summary>The largest texture built: a ZL16 texture from zoom 17, or a ZL18 one from zoom 19, at full detail.</summary>
+    public const int MaxSize = 8192;
+
+    /// <summary>Pixels across a texture at its file's own zoom: 16 x 16 tiles of 256 px.</summary>
+    public const int FileZoomDetail = 4096;
 
     /// <summary>
-    /// Pixels of detail level-change downloads for one texture: 4096 at the file's zoom (16 x 16 tiles of 256 px),
-    /// half as much per level below. Above level 0 the detail is finer than 4096, so it is shrunk to 4096.
+    /// Pixels of detail a level change downloads for one texture: 4096 at the file's zoom, twice as much per level
+    /// finer, half per level coarser, up to <see cref="MaxSize"/>.
     /// </summary>
-    public static int DownloadedDetail(int levelChange) => levelChange >= 0 ? MaxSize : MaxSize >> -levelChange;
-
-    /// <summary>
-    /// The largest texture at a level: 4096 px at level 0 and above, half per level below. That is the detail a ZL18
-    /// texture downloads, so ZL16 textures, fetched one level finer, are shrunk to the same size.
-    /// </summary>
-    public static int LimitFor(int levelChange) => DownloadedDetail(levelChange);
+    public static int DownloadedDetail(int levelChange) =>
+        levelChange >= 0 ? FileZoomDetail << Math.Min(levelChange, 1) : FileZoomDetail >> -levelChange;
 }

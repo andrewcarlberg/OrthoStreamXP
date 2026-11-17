@@ -19,7 +19,16 @@ internal sealed record GraphicsMemory(DateTime MeasuredUtc, int FlownSize, IRead
     /// <summary>What X-Plane itself takes of a graphics card beside the photo textures, about: the warning's margin.</summary>
     public const long XPlaneOwnBytes = 5L << 30;
 
-    public static readonly int[] Sizes = [1024, 2048, 4096];
+    public static readonly int[] Sizes = [1024, 2048, 4096, 8192];
+
+    /// <summary>
+    /// The test flight's peaks, and at 8192 px, which it did not fly, an estimate: the step from 2048 to 4096 again
+    /// (x 1.71), the textures beside the aircraft being the ones that grow.
+    /// </summary>
+    private static readonly Dictionary<int, long> ReferencePeaks = new()
+    {
+        [1024] = 462_000_000, [2048] = 741_000_000, [4096] = 1_267_000_000, [8192] = 2_166_000_000,
+    };
 
     /// <summary>Measured on the test flight of 27 October 2026 (Extra over Poland, 57 min, peaks of 20-minute spans).</summary>
     public static readonly GraphicsMemory TestFlight = new(new DateTime(2026, 10, 27, 12, 0, 0, DateTimeKind.Utc), 4096,
@@ -37,9 +46,12 @@ internal sealed record GraphicsMemory(DateTime MeasuredUtc, int FlownSize, IRead
     public long BytesAt(int size)
     {
         if (size <= FlownSize && PeakBySize.TryGetValue(size, out long measured)) return measured;
-        long atFlown = PeakBySize.TryGetValue(FlownSize, out long f) ? f : TestFlight.BytesAt(FlownSize);
-        return (long)(atFlown * (double)TestFlight.BytesAt(size) / TestFlight.BytesAt(FlownSize));
+        long atFlown = PeakBySize.TryGetValue(FlownSize, out long f) ? f : Reference(FlownSize);
+        return (long)(atFlown * (double)Reference(size) / Reference(FlownSize));
     }
+
+    private static long Reference(int size) =>
+        ReferencePeaks.TryGetValue(size, out long bytes) ? bytes : throw new ArgumentOutOfRangeException(nameof(size), size, "Not a texture size of the graphics memory model");
 
     /// <summary>A texture's memory in BC1 with its smaller levels: half a byte a pixel, a third more for the levels.</summary>
     public static long TextureBytes(int pixels)

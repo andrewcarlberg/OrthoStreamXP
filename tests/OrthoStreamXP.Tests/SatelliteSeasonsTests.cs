@@ -288,7 +288,7 @@ public sealed class SatelliteSeasonsTests : IDisposable
         clock.OfferDate(Day(1, 15), newFlight: true);
         Assert.True(TextureName.TryParseFile("21840_35584_BI16.dds", out TextureName first));
         Assert.True(TextureName.TryParseFile("21840_35600_BI16.dds", out TextureName second));
-        ushort[]? calendar = Seasons.TableFor(SeasonModel.For(Day(1, 15), first.Center.Lat));
+        ushort[] calendar = PhotoColours.TableFor(SeasonModel.For(Day(1, 15), first.Center.Lat), Exposure.Full);
 
         Assert.Same(calendar, clock.TableFor(first)); // the record is on its way: the calendar
         release.SetResult();
@@ -328,7 +328,7 @@ public sealed class SatelliteSeasonsTests : IDisposable
         var clock = new SeasonClock(new SeasonOptions(true, 1, SeasonChoice.Auto), null, observed);
 
         Assert.True(TextureName.TryParseFile("21840_35584_BI16.dds", out TextureName name));
-        Assert.Same(Seasons.TableFor(clock.StateAt(name.Center.Lat)), clock.TableFor(name));
+        Assert.Same(PhotoColours.TableFor(clock.StateAt(name.Center.Lat), Exposure.Full), clock.TableFor(name));
         Assert.Null(clock.Summary());
     }
 

@@ -392,7 +392,8 @@ public sealed class PresetAdvisorTests
     [Theory]
     [InlineData(150, 16, "Extra")]  // fast and a big card: the finest
     [InlineData(60, 16, "Ultra")]   // not fast enough for Extra's 4 times the downloads
-    [InlineData(150, 6, "Sharp")]   // 4096 px textures and X-Plane would not fit in 6 GB
+    [InlineData(150, 7, "Sharp")]   // Ultra's 8192 px textures and X-Plane would not fit in 7 GB
+    [InlineData(150, 6, "Balanced")] // nor Sharp's 4096 px in 6 GB
     [InlineData(10, 16, "Balanced")]
     public void After_a_flight_it_is_the_sharpest_the_connection_and_the_card_allow(double mbits, int cardGb, string expected)
     {

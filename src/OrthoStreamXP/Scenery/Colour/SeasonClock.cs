@@ -16,7 +16,7 @@ internal sealed record SeasonOptions(bool On, double Strength, SeasonChoice Choi
 }
 
 /// <summary>
-/// Which season the photo textures show, and each texture's lookup table for it. The date is X-Plane's
+/// Which season the photo textures show, and each texture's lookup table for it and the exposure (<see cref="PhotoColours"/>). The date is X-Plane's
 /// (sim/time/local_date_days), taken when a flight starts, so every texture of a flight is coloured for the same day:
 /// a date changed in X-Plane shows from the next flight or move to another place. Until X-Plane sends a date, the date
 /// of the last flight is used (kept in the history folder), else today's.
@@ -32,10 +32,11 @@ internal sealed class SeasonClock
     public const string DayFileName = "sim-date.txt";
 
     private readonly SeasonOptions _options;
+    private readonly double _exposure;
     private readonly string? _dayFile;
     private readonly ObservedSeasons? _observed;
     /// <summary>With the satellite record: each texture's table for the day it was first read on.</summary>
-    private readonly ConcurrentDictionary<TextureName, (int Day, ushort[]? Table)> _tables = new();
+    private readonly ConcurrentDictionary<TextureName, (int Day, ushort[] Table)> _tables = new();
     private int _day;
     private bool _fromXPlane;
     private long _bySatellite, _byCalendar;
@@ -44,9 +45,11 @@ internal sealed class SeasonClock
 
     /// <param name="dayFile">Where the latest X-Plane date is kept between runs.</param>
     /// <param name="observed">The satellite record, with <see cref="SeasonChoice.Satellite"/>; null goes by the calendar.</param>
-    public SeasonClock(SeasonOptions options, string? dayFile, ObservedSeasons? observed = null)
+    /// <param name="exposure">The exposure in percent, made into the same table as the season and the contrast.</param>
+    public SeasonClock(SeasonOptions options, string? dayFile, ObservedSeasons? observed = null, double exposure = Exposure.Full)
     {
         _options = options;
+        _exposure = exposure;
         _dayFile = dayFile;
         _observed = options.Choice == SeasonChoice.Satellite ? observed : null;
         _day = Remembered(dayFile) ?? DateTime.Now.DayOfYear - 1;
@@ -92,18 +95,18 @@ internal sealed class SeasonClock
     public SeasonState StateAt(double lat) =>
         (_options.FollowsDate ? SeasonModel.For(Day, lat) : SeasonModel.For(_options.Choice)).Scaled(_options.Strength);
 
-    /// <summary>A texture's lookup table for the season at its centre, or null when nothing in it changes.</summary>
-    public ushort[]? TableFor(TextureName name)
+    /// <summary>A texture's lookup table for the season at its centre, the contrast and the exposure (<see cref="PhotoColours.TableFor"/>).</summary>
+    public ushort[] TableFor(TextureName name)
     {
         if (!_coloured) _coloured = true;
-        if (_observed is null) return Seasons.TableFor(StateAt(name.Center.Lat));
+        if (_observed is null) return PhotoColours.TableFor(StateAt(name.Center.Lat), _exposure);
         int day = Day;
         if (_tables.TryGetValue(name, out var kept) && kept.Day == day) return kept.Table;
         var (lat, lon) = name.Center;
         GreennessYear? year = _observed.YearAt(lat, lon);
         Interlocked.Increment(ref year is null ? ref _byCalendar : ref _bySatellite);
         SeasonState state = year is null ? SeasonModel.For(day, lat) : ObservedSeason.For(year, day, lat);
-        ushort[]? table = Seasons.TableFor(state.Scaled(_options.Strength));
+        ushort[] table = PhotoColours.TableFor(state.Scaled(_options.Strength), _exposure);
         // The first table wins: two reads at once of a texture still give X-Plane the same colours.
         return _tables.GetOrAdd(name, (day, table)) is var (keptDay, keptTable) && keptDay == day ? keptTable : table;
     }

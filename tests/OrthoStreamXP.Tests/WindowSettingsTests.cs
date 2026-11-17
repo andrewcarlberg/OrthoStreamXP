@@ -66,7 +66,15 @@ public sealed class WindowSettingsTests : IDisposable
         string path = _tree.WriteText("old.ini", "cache = C:\\c\nlevel-change = 0\ntexture-quality = high\n");
         SettingValues args = SettingsDocument.Load(path).Parse(); // no "unknown setting" error
         Assert.Equal("high", args.String("texture-quality"));
-        Assert.Equal(4096, new OrthoStreamXP.Textures.TexturePlan(args.Int("level-change", 0)).SizeFor(16)); // Ultra's size, whatever it says
+        Assert.Equal(8192, new OrthoStreamXP.Textures.TexturePlan(args.Int("level-change", 0)).SizeFor(16)); // Ultra's size, whatever it says
+    }
+
+    [Fact]
+    public void An_older_settings_file_with_the_removed_colour_matching_still_loads()
+    {
+        string path = _tree.WriteText("old.ini", "cache = C:\\c\nmatch-colours = on\nmatch-strength = 60\n");
+        SettingValues args = SettingsDocument.Load(path).Parse(); // no "unknown setting" error
+        Assert.Equal("on", args.String("match-colours"));
     }
 
     [Theory]

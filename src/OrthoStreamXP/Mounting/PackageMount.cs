@@ -18,7 +18,7 @@ internal sealed class PackageMount : IDisposable
 
     public PackageMount(PackagePlan plan, SceneryRoots roots, TextureBuilder? builder, TextureOptions textureOptions,
         bool trackAircraft, bool loadAhead, bool lazyTerrainListing, TerrainDecals decals, TextureStreamer? streamer, ViewTracker view, ReadLog? readLog,
-        SeasonClock? seasons, AreaUsage? usage, ColourMatcher? colours, SceneryLoads loads, ushort[]? exposure, NightTextures? night)
+        SeasonClock? seasons, AreaUsage? usage, SceneryLoads loads, ushort[]? colours, NightTextures? night)
     {
         Plan = plan;
         Streamer = streamer;
@@ -28,6 +28,8 @@ internal sealed class PackageMount : IDisposable
         {
             // The flight-path prefetch goes through the warmer too, so detailed builds stay limited.
             Warmer = Catalog is null ? null : new MipWarmer(Catalog, streamer, view, textureOptions.DdsBuildWorkers, warmLoadedScenery: loadAhead);
+            // The scenery tiles on the way get the level X-Plane reads when it loads them, before it does.
+            Upcoming = Warmer is null || !loadAhead || !trackAircraft ? null : new UpcomingScenery(roots.Source, view, loads, Warmer);
         }
         else
         {
@@ -35,7 +37,7 @@ internal sealed class PackageMount : IDisposable
             LoadAhead = Catalog is null || !loadAhead ? null : new LoadAheadPrefetcher(Catalog, Scheduler!, roots, textureOptions.DdsBuildWorkers * 2);
         }
         Overlay = new SceneryOverlay(roots, Scheduler, lazyTerrainListing, Catalog, streamer, decals, night);
-        _host = new FileSystemHost(new SceneryFileSystem(Overlay, "OrthoStreamXP", readLog, plan.Name, seasons, usage, colours, loads, exposure));
+        _host = new FileSystemHost(new SceneryFileSystem(Overlay, "OrthoStreamXP", readLog, plan.Name, seasons, usage, loads, colours));
     }
 
     public PackagePlan Plan { get; }
@@ -44,6 +46,7 @@ internal sealed class PackageMount : IDisposable
     public TextureCatalog? Catalog { get; }
     public LoadAheadPrefetcher? LoadAhead { get; }
     public MipWarmer? Warmer { get; }
+    public UpcomingScenery? Upcoming { get; }
     public SceneryOverlay Overlay { get; }
 
     public void Mount(int fileSystemThreads)
@@ -65,6 +68,7 @@ internal sealed class PackageMount : IDisposable
         Unmount();
         _host.Dispose();
         LoadAhead?.Dispose();
+        Upcoming?.Dispose();
         Warmer?.Dispose();
         Scheduler?.Dispose();
         Streamer?.Dispose();

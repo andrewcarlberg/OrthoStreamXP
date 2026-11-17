@@ -11,14 +11,14 @@ namespace OrthoStreamXP.Scenery;
 /// <summary>
 /// Read-only WinFsp file system over a <see cref="SceneryOverlay"/>. Streamed textures are answered by the
 /// overlay's <see cref="TextureStreamer"/>; with a <see cref="ReadLog"/>, every open and read is recorded. Photo textures
-/// get their colours evened out (<paramref name="colours"/>), then the season's (<paramref name="seasons"/>) and the
-/// <paramref name="exposure"/> as they are read (<see cref="PhotoColours"/>).
+/// get the season's colours, the contrast and the exposure as they are read, one table for all (<see cref="PhotoColours"/>).
 /// </summary>
 /// <param name="package">The package name in the read log.</param>
+/// <param name="seasons">Each texture's table for its season, the contrast and the exposure; null with the seasons off.</param>
 /// <param name="loads">Notes the scenery tiles (DSFs) X-Plane loads.</param>
-/// <param name="exposure">The exposure's lookup table (<see cref="Exposure"/>), or null for the photos as they are.</param>
+/// <param name="colours">The photos' table with the seasons off (the contrast and the exposure), or null for the photos as stored.</param>
 internal sealed class SceneryFileSystem(SceneryOverlay overlay, string label, ReadLog? readLog = null, string package = "", SeasonClock? seasons = null,
-    OrthoStreamXP.Setup.AreaUsage? usage = null, ColourMatcher? colours = null, SceneryLoads? loads = null, ushort[]? exposure = null)
+    OrthoStreamXP.Setup.AreaUsage? usage = null, SceneryLoads? loads = null, ushort[]? colours = null)
     : FileSystemBase
 {
     private const ulong TotalSize = 1UL << 40, FreeSize = 1UL << 39;
@@ -44,12 +44,9 @@ internal sealed class SceneryFileSystem(SceneryOverlay overlay, string label, Re
         /// <summary>A photo texture X-Plane gets as a finished file: its reads are still paging evidence.</summary>
         public StreamedTexture? Photo { get; init; }
         public ReadCursor? Cursor { get; init; }
-        /// <summary>A photo texture whose colours change as it is read: its name, colour-block size (8 or 16) and width; 0 bytes: left as it is.</summary>
+        /// <summary>A photo texture whose colours change as it is read: its name and colour-block size (8 or 16); 0 bytes: left as it is.</summary>
         public TextureName SeasonName { get; init; }
         public int SeasonBlockBytes { get; init; }
-        public int SeasonSize { get; init; }
-        /// <summary>The backing file's write time: a new one is measured again for its colours.</summary>
-        public DateTime FileVersion { get; init; }
     }
 
     private static byte[] SecurityFromSddl(string sddl)
@@ -140,7 +137,7 @@ internal sealed class SceneryFileSystem(SceneryOverlay overlay, string label, Re
             fileNode = new Handle(path, "", false)
             {
                 Streamed = streamed, Cursor = new ReadCursor(), Length = streamed.Layout.Length,
-                SeasonName = streamed.Name, SeasonBlockBytes = Recolours ? 8 : 0, SeasonSize = streamed.Layout.Size,
+                SeasonName = streamed.Name, SeasonBlockBytes = Recolours ? 8 : 0,
             };
             fileInfo = Describe(streamed);
             readLog?.Open(package, path, "streamed");
@@ -177,8 +174,6 @@ internal sealed class SceneryFileSystem(SceneryOverlay overlay, string label, Re
             Cursor = photo is null ? null : new ReadCursor(),
             SeasonName = seasonName,
             SeasonBlockBytes = blockBytes,
-            SeasonSize = size,
-            FileVersion = blockBytes > 0 ? System.IO.File.GetLastWriteTimeUtc(backing) : default,
         };
         fileNode = handle;
         fileInfo = Describe(isDirectory ? new DirectoryInfo(backing) : new FileInfo(backing));
@@ -214,13 +209,11 @@ internal sealed class SceneryFileSystem(SceneryOverlay overlay, string label, Re
         var handle = (Handle)fileNode;
         if (offset >= (ulong)handle.Length) return handle.File is null && handle.Streamed is null && handle.Content is null && handle.Night is null ? STATUS_ACCESS_DENIED : STATUS_END_OF_FILE;
         var target = new Span<byte>((void*)buffer, checked((int)length));
-        // Before the read: a photo arriving meanwhile is read with the base's correction until the next read, never the reverse.
-        TextureColour? colour = ColourOf(handle);
         if (handle.Streamed is { } streamed)
         {
             ReadAnswer answer = overlay.Streamer!.Read(streamed, handle.Cursor!, (long)offset, target);
             bytesTransferred = (uint)answer.Bytes;
-            Recolor(handle, target[..answer.Bytes], offset, colour);
+            Recolor(handle, target[..answer.Bytes], offset);
             LogTextureRead(handle.Path, (long)offset, answer, streamed);
             return STATUS_SUCCESS;
         }
@@ -241,7 +234,7 @@ internal sealed class SceneryFileSystem(SceneryOverlay overlay, string label, Re
         }
         if (handle.File is null) return STATUS_ACCESS_DENIED;
         bytesTransferred = (uint)RandomAccess.Read(handle.File, target, (long)offset);
-        Recolor(handle, target[..(int)bytesTransferred], offset, colour);
+        Recolor(handle, target[..(int)bytesTransferred], offset);
         if (handle.Photo is { } photo)
             LogTextureRead(handle.Path, (long)offset, overlay.Streamer!.NoteFileRead(photo, handle.Cursor!, (long)offset, (int)bytesTransferred), photo);
         else
@@ -250,43 +243,13 @@ internal sealed class SceneryFileSystem(SceneryOverlay overlay, string label, Re
     }
 
     /// <summary>Whether photo textures get any colour adjustment.</summary>
-    private bool Recolours => seasons is not null || colours is not null || exposure is not null;
+    private bool Recolours => seasons is not null || colours is not null;
 
-    /// <summary>The evened-out colours, the season's and the exposure for a photo texture's bytes (the cache keeps the imagery as downloaded).</summary>
-    private void Recolor(Handle handle, Span<byte> data, ulong offset, TextureColour? colour)
+    /// <summary>The season's colours, the contrast and the exposure for a photo texture's bytes (the cache keeps the colours as built).</summary>
+    private void Recolor(Handle handle, Span<byte> data, ulong offset)
     {
         if (handle.SeasonBlockBytes == 0) return;
-        PhotoColours.Apply(data, (long)offset, handle.SeasonBlockBytes, handle.SeasonSize, colour, seasons?.TableFor(handle.SeasonName), exposure);
-    }
-
-    /// <summary>
-    /// A photo texture's colour correction: measured on the photo (a streamed texture's real data, or the file), or the
-    /// base's while the picture is still the low-zoom base; null when there is none.
-    /// </summary>
-    private TextureColour? ColourOf(Handle handle)
-    {
-        if (colours is null || handle.SeasonBlockBytes == 0) return null;
-        if (handle.Streamed is { } streamed)
-        {
-            TextureStreamer streamer = overlay.Streamer!;
-            var (source, version) = streamer.Picture(streamed);
-            return source == PictureSource.Photo
-                ? colours.ForPhoto(streamed.Name, version, size => streamer.PhotoSample(streamed, size))
-                : colours.ForBase(streamed.Name);
-        }
-        return handle.SeasonBlockBytes == 8 && handle.File is { } file
-            ? colours.ForPhoto(handle.SeasonName, handle.FileVersion, size => FileSample(file, handle.SeasonSize, size))
-            : null;
-    }
-
-    /// <summary>The level of a DXT1 file nearest <paramref name="size"/> pixels, decoded to RGB; null when the file is not a full chain of levels.</summary>
-    internal static (byte[] Rgb, int Size)? FileSample(SafeFileHandle file, int fileSize, int size)
-    {
-        var layout = DdsLayout.For(fileSize);
-        if (RandomAccess.GetLength(file) < layout.Length) return null;
-        int mip = Math.Clamp((int)Math.Round(Math.Log2((double)fileSize / size)), 0, layout.Levels - 1), levelSize = layout.SizeOf(mip);
-        byte[] blocks = new byte[layout.LengthOf(mip)];
-        return RandomAccess.Read(file, blocks, layout.Offset(mip)) < blocks.Length ? null : (Dds.DecodeLevel(blocks, levelSize, levelSize), levelSize);
+        PhotoColours.Apply(data, (long)offset, handle.SeasonBlockBytes, seasons is not null ? seasons.TableFor(handle.SeasonName) : colours);
     }
 
     /// <summary>A photo texture file whose colours can change: square DXT1, DXT3 or DXT5, named like 21904_35824_BI16.dds.</summary>

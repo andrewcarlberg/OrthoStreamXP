@@ -9,6 +9,8 @@ namespace OrthoStreamXP.Textures;
 internal static class Tiles
 {
     public const int TilePx = 256;
+    /// <summary>Bytes of one tile's RGB pixels.</summary>
+    public const int TileBytes = TilePx * TilePx * 3;
     /// <summary>A texture is 16x16 source tiles (4096 px at its file zoom), as in the .ter files.</summary>
     public const int TextureSpan = 16;
     public const double MaxLat = 85.05112878;

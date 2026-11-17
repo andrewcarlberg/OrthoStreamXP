@@ -25,7 +25,7 @@ Each scenery file (`.dsf`) says exactly which photo texture goes on which part o
 All three put photos on scenery packages, so the base packages are the same. OrthoStreamXP was written to avoid the problems of the others:
 
 - **Speed.** A new area loads in a few minutes (each preset card shows an estimate), and areas you have flown before load from the cache at once.
-- **Quality for free.** There is no paid tier. Textures go up to 4096 px and the imagery up to zoom 19, with no limit on the zoom level or the picture size.
+- **Quality for free.** There is no paid tier. Textures go up to 8192 px and the imagery up to zoom 19, with no limit on the zoom level or the picture size.
 - **Settings tuned for you.** **Test my connection** chooses the quality and the number of downloads, and after each flight OrthoStreamXP suggests changes from what it measured (see [Flying](flying.md#tuning-suggestions)).
 
 ### I already have ZL17/ZL18 photo scenery on disk. What do I gain?

@@ -17,8 +17,6 @@ internal static class SettingNames
         ["cache"] = "Cache folder",
         ["texture-provider"] = "Where the pictures come from",
         ["download-workers"] = "Downloads at once",
-        ["match-colours"] = "Colour matching",
-        ["match-strength"] = "Colour matching",
         ["seasons"] = "Seasons",
         ["season"] = "Seasons",
         ["season-strength"] = "Seasons",

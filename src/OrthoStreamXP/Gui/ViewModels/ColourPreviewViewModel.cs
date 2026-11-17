@@ -9,7 +9,7 @@ namespace OrthoStreamXP.Gui;
 /// The Colours tab's before and after pictures (<see cref="ColourPreview"/>): a photo from the cache, made again off the UI
 /// thread whenever a colour setting changes; a change made meanwhile replaces the picture being made.
 /// </summary>
-internal sealed class ColourPreviewViewModel : ObservableObject, IDisposable
+internal sealed class ColourPreviewViewModel : ObservableObject
 {
     private readonly Func<string?> _cache;
     private readonly Func<ColourAdjustments> _settings;
@@ -96,7 +96,6 @@ internal sealed class ColourPreviewViewModel : ObservableObject, IDisposable
         }
         if (!string.Equals(cache, _previewCache, StringComparison.OrdinalIgnoreCase))
         {
-            _preview?.Dispose();
             _preview = new ColourPreview(cache, AppPaths.History);
             _previewCache = cache;
             _photos = [];
@@ -123,8 +122,7 @@ internal sealed class ColourPreviewViewModel : ObservableObject, IDisposable
                 return (found, null, (string?)null);
             }).ConfigureAwait(true);
         }
-        // ObjectDisposedException: the cache folder changed while this picture was being made; a newer one replaces it.
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or ObjectDisposedException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
             result = (photos, null, $"The preview could not read the cache: {ex.Message}");
         }
@@ -153,6 +151,4 @@ internal sealed class ColourPreviewViewModel : ObservableObject, IDisposable
         bitmap.Freeze();
         return bitmap;
     }
-
-    public void Dispose() => _preview?.Dispose();
 }

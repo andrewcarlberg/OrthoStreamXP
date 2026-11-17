@@ -6,7 +6,8 @@ namespace OrthoStreamXP.Textures;
 
 /// <summary>
 /// BC1 encoding by Intel's ISPC Texture Compressor (<c>ispc_texcomp.dll</c>, MIT, built by native\ispc_texcomp\build.ps1):
-/// on aerial textures 6-8 times faster than <see cref="Dds"/>'s own encoder and a little sharper. The DLL is loaded
+/// on aerial textures 6-8 times faster than <see cref="Dds"/>'s own encoder (about twice with the refinement after it,
+/// <see cref="Bc1Refinement"/>) and sharper. The DLL is loaded
 /// from the program's folder once; without it <see cref="IsAvailable"/> is false and <see cref="Dds"/> encodes itself.
 /// </summary>
 internal static unsafe class IspcBc1
@@ -85,12 +86,14 @@ internal static unsafe class IspcBc1
 
     /// <summary>
     /// After ISPC, for the blocks of a chunk (<paramref name="rgba"/> its pixels): a one-colour block gets the endpoint
-    /// pair that mixes closest to its colour (ISPC lands up to a 565 step off: water and flat fields), and every block
-    /// the opaque four-colour mode (first colour the larger), which the recolouring (<see cref="ColourTable"/>) expects.
+    /// pair that mixes closest to its colour (ISPC lands up to a 565 step off: water and flat fields); every other block
+    /// the opaque four-colour mode (first colour the larger), which the recolouring (<see cref="ColourTable"/>) expects,
+    /// and then the least-squares refinement of its two colours (<see cref="Bc1Refinement"/>), which ISPC leaves out.
     /// </summary>
     private static void Finish(Span<byte> blocks, byte[] rgba, int stride)
     {
         int blocksX = stride / 16;
+        Span<byte> pixels = stackalloc byte[48];
         for (int index = 0; index * 8 + 8 <= blocks.Length; index++)
         {
             Span<byte> block = blocks.Slice(index * 8, 8);
@@ -102,6 +105,20 @@ internal static unsafe class IspcBc1
             }
             ushort c0 = BinaryPrimitives.ReadUInt16LittleEndian(block), c1 = BinaryPrimitives.ReadUInt16LittleEndian(block[2..]);
             if (c0 <= c1) ColourTable.WriteColors(block, 8, c0, c1);
+            BlockPixels(rgba, first, stride, pixels);
+            Bc1Refinement.Refine(block, pixels);
+        }
+    }
+
+    /// <summary>A block's 16 pixels as RGB, row by row, from the RGBA rows of its chunk.</summary>
+    private static void BlockPixels(byte[] rgba, int first, int stride, Span<byte> pixels)
+    {
+        for (int i = 0; i < 16; i++)
+        {
+            int at = first + (i >> 2) * stride + (i & 3) * 4;
+            pixels[i * 3] = rgba[at];
+            pixels[i * 3 + 1] = rgba[at + 1];
+            pixels[i * 3 + 2] = rgba[at + 2];
         }
     }
 

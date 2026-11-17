@@ -31,7 +31,7 @@ public sealed class MountSmokeTests : IDisposable
         {
             byte[] dds = File.ReadAllBytes(Path.Join(mount, "textures", Stem + ".dds"));
             Assert.Equal("DDS "u8.ToArray(), dds[..4]);
-            Assert.Equal(DdsLayout.For(512).Length, dds.Length); // level -3: a ZL16 texture is 512 px
+            Assert.Equal(DdsLayout.For(1024).Length, dds.Length); // level -3: a ZL16 texture is 1024 px, the detail of zoom 14
 
             string definition = File.ReadAllText(Path.Join(mount, "terrain", Stem + ".ter"));
             Assert.Contains($"BASE_TEX_NOWRAP ../textures/{Stem}.dds", definition, StringComparison.Ordinal);

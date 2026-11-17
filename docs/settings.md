@@ -19,13 +19,15 @@ Choose how sharp the ground is. Each preset comes with settings tested for it an
 
 | Preset | Textures | Imagery zoom | Resolution | Best for |
 |---|---|---|---|---|
-| **Balanced** | 1024 px | 15, 16 near airports | ~6.8 m per pixel | High flying, a slower connection or little graphics memory |
-| **Sharp** | 2048 px | 16, 17 near airports | ~3.4 m per pixel | Everyday flying, approaches included |
-| **Ultra** | 4096 px | 17, 18 near airports | ~1.7 m per pixel | Low flight and GA, with plenty of graphics memory |
-| **Extra** | 4096 px | 17, 19 near airports | ~1.7 m per pixel | Low and slow flight and screenshots, on a fast connection |
+| **Balanced** | 2048 px, 1024 near airports | 15, 16 near airports | ~3.4 m per pixel | High flying, a slower connection or little graphics memory |
+| **Sharp** | 4096 px, 2048 near airports | 16, 17 near airports | ~1.7 m per pixel | Everyday flying, approaches included |
+| **Ultra** | 8192 px, 4096 near airports | 17, 18 near airports | ~0.8 m per pixel | Low flight and GA, with plenty of graphics memory |
+| **Extra** | 8192 px | 17, 19 near airports | ~0.8 m per pixel | Low and slow flight and screenshots, on a fast connection |
 | **Dynamic** | Extra's near the ground, less higher up | as Extra below 5,000 ft | follows the height | Climbs, cruise and approaches in one flight, on a fast connection |
 
-**Extra** is Ultra with the finest imagery (zoom 19) near airports, which often avoids clouds and other artefacts. Elsewhere it is the same as Ultra. Near airports it downloads four times as much as Ultra, and a new area takes a little longer to load: about 4 minutes, then sharp next to the aircraft.
+Each texture keeps all the detail of the imagery it is made from: nothing is shrunk. The resolution is for the wide areas away from airports, at mid latitudes; near airports the textures cover a quarter of the width, so the same size is four times as sharp there.
+
+**Extra** is Ultra with the finest imagery (zoom 19) near airports, as 8192 px textures, twice as sharp as Ultra's there and often without its clouds and other artefacts. Elsewhere it is the same as Ultra. Near airports it downloads four times as much as Ultra, and a new area takes a little longer to load: about 4 minutes, then sharp next to the aircraft.
 
 ### Dynamic
 
@@ -85,13 +87,6 @@ Your scenery packages are not changed: OrthoStreamXP adjusts the terrain files a
 ### Preview
 
 The top of the tab shows a photo from your cache twice: **Before** (as downloaded) and **After** (as X-Plane will get it with the settings below). It updates as you change them, and **Another photo** picks a different one. The preview needs a cache folder with at least one flown area in it. It works while the scenery is streaming too. When you scroll down to the settings, the preview stays at the top of the tab, so you can see each change as you make it.
-
-### Colour matching
-
-Aerial photos are a patchwork of pictures taken on different days, so one patch can look grey and hazy next to a bright green one.
-
-- **Even out the colours between photos** moves each place towards the colours usual in its area, so the patches stand out less. Fields keep their own colours.
-- **Strength** sets how far the colours move: 100 % is the full correction, and less keeps more of each photo's own look.
 
 ### Seasons
 

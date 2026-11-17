@@ -20,6 +20,15 @@ internal readonly record struct SceneryTile(int Lat, int Lon)
     }
 
     public override string ToString() => $"{(Lat < 0 ? '-' : '+')}{Math.Abs(Lat):00}{(Lon < 0 ? '-' : '+')}{Math.Abs(Lon):000}";
+
+    /// <summary>The tile's DSF in a package, e.g. "Earth nav data/+40+010/+47+011.dsf".</summary>
+    public string DsfPath => Path.Join("Earth nav data", new SceneryTile(FloorTen(Lat), FloorTen(Lon)).ToString(), ToString() + ".dsf");
+
+    /// <summary>The tile holding a point.</summary>
+    public static SceneryTile At(double lat, double lon) =>
+        new((int)Math.Clamp(Math.Floor(lat), -90, 89), (int)Math.Floor(((lon + 180) % 360 + 360) % 360 - 180));
+
+    private static int FloorTen(int degrees) => (int)Math.Floor(degrees / 10.0) * 10;
 }
 
 /// <summary>
@@ -46,6 +55,12 @@ internal sealed class SceneryLoads(ViewTracker view)
             _loaded[tile] = now;
         }
         Log.Info($"X-Plane loads the scenery tile {tile}{(package.Length > 0 ? $" of {package}" : "")}; {Where(view.Latest, now)}");
+    }
+
+    /// <summary>Whether X-Plane has opened the tile's DSF this session (in any package).</summary>
+    public bool Seen(SceneryTile tile)
+    {
+        lock (_gate) return _loaded.ContainsKey(tile);
     }
 
     /// <summary>The camera's place, height and motion, or that X-Plane has sent none.</summary>

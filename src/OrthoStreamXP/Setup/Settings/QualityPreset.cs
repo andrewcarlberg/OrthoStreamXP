@@ -13,25 +13,25 @@ internal sealed record QualityPreset(string Name, int Level, string Summary, str
     IReadOnlyDictionary<string, string?> Settings)
 {
     public static readonly QualityPreset Balanced = new("Balanced", -2,
-        "1024 px textures from zoom 15-16 imagery: light on graphics memory and the connection, fine from higher up.",
+        "2048 px textures from zoom 15 imagery, 1024 px from zoom 16 near airports: light on graphics memory and the connection, fine from higher up.",
         "High flying, a slower connection or little graphics memory", "about 3 min",
         Values(buildWorkers: 16, fileSystemThreads: 64, provisionalLod: 0, provisionalWait: null, radiusKm: 6, textures: 16, buildMemoryMb: 512, lookahead: 180));
 
     public static readonly QualityPreset Sharp = new("Sharp", -1,
-        "2048 px textures from zoom 16-17 imagery: twice as sharp as Balanced.",
+        "4096 px textures from zoom 16 imagery, 2048 px from zoom 17 near airports: twice as sharp as Balanced.",
         "Everyday flying, approaches included", "about 3 min",
         Values(buildWorkers: 8, fileSystemThreads: 96, provisionalLod: 2, provisionalWait: 5, radiusKm: 5, textures: 8, buildMemoryMb: 512));
 
     public static readonly QualityPreset Ultra = new("Ultra", 0,
-        "4096 px textures from zoom 17-18 imagery: twice as sharp as Sharp.",
+        "8192 px textures from zoom 17 imagery, 4096 px from zoom 18 near airports: twice as sharp as Sharp.",
         "Low flight and GA, with plenty of graphics memory", "about 3 min",
         Values(buildWorkers: 8, fileSystemThreads: 96, provisionalLod: 3, provisionalWait: 3, radiusKm: 4, textures: 6, buildMemoryMb: 1024));
 
-    // Level +1: ZL18 airports at zoom 19, ZL16 areas at zoom 17 (as Ultra), as 4096 px textures. The finer, newer imagery
+    // Level +1: ZL18 airports at zoom 19 as 8192 px textures, ZL16 areas at zoom 17 as Ultra's. The finer, newer imagery
     // of zoom 19 often avoids the clouds and other artifacts of the coarser ones. A ZL18 texture downloads 1024 tiles,
     // four times Ultra's; a ZL16 texture the same 1024 as Ultra's.
     public static readonly QualityPreset Extra = new("Extra", 1,
-        "4096 px textures like Ultra's, with the finest imagery (zoom 19) near airports, which often avoids clouds and other artifacts: four times Ultra's downloads there.",
+        "8192 px textures everywhere: Ultra's, and the finest imagery (zoom 19) near airports, twice as sharp as Ultra's there and often without its clouds and other artifacts: four times Ultra's downloads there.",
         "Low and slow flight and screenshots, on a fast connection", "about 4 min, then sharp next to the aircraft",
         Values(buildWorkers: 8, fileSystemThreads: 96, provisionalLod: 3, provisionalWait: 3, radiusKm: 4, textures: 6, buildMemoryMb: 1024, lookahead: 90));
 

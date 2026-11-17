@@ -3,20 +3,19 @@ using OrthoStreamXP.Textures;
 namespace OrthoStreamXP.Tests;
 
 /// <summary>
-/// Texture size = the detail --level-change downloads, capped by the level's own limit (4096 px at level 0 and above,
-/// half per level below: the detail a ZL18 texture downloads), never enlarged.
+/// Texture size = the detail --level-change downloads, never shrunk below it (up to 8192 px), never enlarged.
 /// </summary>
 public sealed class TextureQualityTests
 {
     [Theory]
     //          level  ZL16  ZL18
-    [InlineData(-4, 256, 256)]
-    [InlineData(-3, 512, 512)]
-    [InlineData(-2, 1024, 1024)]  // Balanced
-    [InlineData(-1, 2048, 2048)]  // Sharp
-    [InlineData(0, 4096, 4096)]   // Ultra
-    [InlineData(1, 4096, 4096)]   // Extra
-    [InlineData(2, 4096, 4096)]   // never more than 4096
+    [InlineData(-4, 512, 256)]
+    [InlineData(-3, 1024, 512)]
+    [InlineData(-2, 2048, 1024)]  // Balanced
+    [InlineData(-1, 4096, 2048)]  // Sharp
+    [InlineData(0, 8192, 4096)]   // Ultra
+    [InlineData(1, 8192, 8192)]   // Extra
+    [InlineData(2, 8192, 8192)]   // never more than 8192
     public void The_size_follows_the_level(int level, int zl16, int zl18)
     {
         var plan = new TexturePlan(level);
@@ -25,11 +24,12 @@ public sealed class TextureQualityTests
 
     [Theory]
     //          level  ZL16 detail / size  ZL18 detail / size
-    [InlineData(-2, 2, 1)]
-    [InlineData(-1, 2, 1)]
-    [InlineData(0, 2, 1)]
-    [InlineData(1, 2, 2)] // 4096 px is the largest: Extra's zoom 19 airports are shrunk too
-    public void Textures_shrink_the_finer_detail_they_download(int level, int zl16, int zl18)
+    [InlineData(-2, 1, 1)]
+    [InlineData(-1, 1, 1)]
+    [InlineData(0, 1, 1)]
+    [InlineData(1, 1, 1)]
+    [InlineData(2, 2, 2)] // 8192 px is the largest: only a level beyond Extra's is shrunk
+    public void Textures_keep_the_detail_they_download(int level, int zl16, int zl18)
     {
         var plan = new TexturePlan(level);
         // The pixels a texture's tiles hold: 4096 at its own zoom (16 x 16 tiles of 256 px), twice as many per zoom finer.
@@ -39,12 +39,12 @@ public sealed class TextureQualityTests
     }
 
     [Fact]
-    public void Level_plus_one_downloads_zoom_17_and_19_and_builds_4096()
+    public void Level_plus_one_downloads_zoom_17_and_19_and_builds_8192()
     {
         var plan = new TexturePlan(1);
-        Assert.Equal((17, 4096), (plan.FetchZoom(16), plan.SizeFor(16)));
-        Assert.Equal((19, 4096), (plan.FetchZoom(18), plan.SizeFor(18)));
-        Assert.Equal("Extra_4096-4096", plan.FolderName);
+        Assert.Equal((17, 8192), (plan.FetchZoom(16), plan.SizeFor(16)));
+        Assert.Equal((19, 8192), (plan.FetchZoom(18), plan.SizeFor(18)));
+        Assert.Equal("Extra_8192-8192", plan.FolderName);
     }
 
     [Theory]
@@ -66,18 +66,18 @@ public sealed class TextureQualityTests
     public void Sizes_by_file_name_and_the_log_line()
     {
         var plan = new TexturePlan(-2);
-        Assert.Equal(1024, plan.SizeFor("21904_35824_BI16.dds"));
+        Assert.Equal(2048, plan.SizeFor("21904_35824_BI16.dds"));
         Assert.Null(plan.SizeFor("water_transition.dds"));
-        Assert.Equal("ZL16 → zoom 15, 1024 px; ZL18 → zoom 16, 1024 px", plan.Describe());
-        Assert.Equal(2048, new TexturePlan(-2, TextureSizing.MaxSize).SizeFor(16)); // an explicit limit (tests) replaces the level's
+        Assert.Equal("ZL16 → zoom 15, 2048 px; ZL18 → zoom 16, 1024 px", plan.Describe());
+        Assert.Equal(4096, new TexturePlan(0, 4096).SizeFor(16)); // an explicit limit (tests) caps the size
     }
 
     [Theory]
-    [InlineData(-2, "Balanced_1024-1024")]
-    [InlineData(-1, "Sharp_2048-2048")]
-    [InlineData(0, "Ultra_4096-4096")]
-    [InlineData(1, "Extra_4096-4096")]
-    [InlineData(-3, "level-3_512-512")]
+    [InlineData(-2, "Balanced_2048-1024")]
+    [InlineData(-1, "Sharp_4096-2048")]
+    [InlineData(0, "Ultra_8192-4096")]
+    [InlineData(1, "Extra_8192-8192")]
+    [InlineData(-3, "level-3_1024-512")]
     public void Each_level_has_its_own_cache_folder(int level, string folder) =>
         Assert.Equal(folder, new TexturePlan(level).FolderName);
 
@@ -119,7 +119,7 @@ public sealed class TextureQualityTests
         using var tree = new TempTree();
         using var tiles = new TileSource("synthetic", null, 8);
         string destination = tree.PathOf("21904_35824_BI16.dds");
-        int size = new TexturePlan(-3).SizeFor(16); // 512 px from level -2's 1024 px of detail
+        const int size = 512; // from level -2's 1024 px of detail: a level beyond Extra's still shrinks what it downloads
 
         BuildResult result = await new TextureBuilder(tiles, 2).BuildAsync("21904_35824_BI16.dds", size, destination, levelChange: -2);
 

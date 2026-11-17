@@ -66,10 +66,6 @@ internal sealed record MountSettings
     public long CacheLimitBytes { get; init; }
     /// <summary>Seasonal colours for the photo textures.</summary>
     public SeasonOptions Seasons { get; init; } = SeasonOptions.Off;
-    /// <summary>Photo colours evened out between captures, by the low-zoom base.</summary>
-    public bool MatchColours { get; init; }
-    /// <summary>How much of the colour matching is made, 0 to 1.</summary>
-    public double MatchStrength { get; init; } = 1;
     /// <summary>The photos' exposure in percent, <see cref="OrthoStreamXP.Textures.Exposure.Min"/> to 100 (100: as they are).</summary>
     public double Exposure { get; init; } = OrthoStreamXP.Textures.Exposure.Full;
     /// <summary>Every open and read, and the camera, logged as CSV beside the log.</summary>
@@ -88,7 +84,7 @@ internal sealed record MountSettings
         string cache = Path.TrimEndingDirectorySeparator(Path.GetFullPath(values.Required("cache")));
         int levelChange = values.Int("level-change", 0);
         if (levelChange is < -4 or > 2) throw new SettingsException("level-change must be between -4 and 2");
-        // The texture size follows the level (Balanced 512 ... Extra 4096); an older settings file's texture-quality is ignored.
+        // The texture size follows the level (Balanced 2048/1024 ... Extra 8192); an older settings file's texture-quality is ignored.
         var texturePlan = new TexturePlan(levelChange);
         // One cache folder for every setup: each texture plan keeps its files in its own subfolder.
         string planCache = Path.Join(cache, texturePlan.FolderName);
@@ -138,10 +134,6 @@ internal sealed record MountSettings
         SeasonOptions seasons = ParseSeasons(values);
         double cacheLimitGb = values.Double("cache-limit", 0);
         if (cacheLimitGb is < 0 or > 100_000) throw new SettingsException("cache-limit must be 0 (no limit) or a size in GB");
-        string matchValue = values.String("match-colours") ?? "off";
-        bool matchColours = ParseOnOff(matchValue) ?? throw new SettingsException($"match-colours must be on or off, not '{matchValue}'");
-        double matchStrength = values.Double("match-strength", 100);
-        if (matchStrength is < 0 or > 100) throw new SettingsException("match-strength must be between 0 and 100");
         double exposure = values.Double("exposure", OrthoStreamXP.Textures.Exposure.Full);
         if (exposure is < OrthoStreamXP.Textures.Exposure.Min or > OrthoStreamXP.Textures.Exposure.Full)
             throw new SettingsException($"exposure must be between {OrthoStreamXP.Textures.Exposure.Min} and {OrthoStreamXP.Textures.Exposure.Full}");
@@ -220,8 +212,6 @@ internal sealed record MountSettings
             BuildTiles = buildTiles,
             PagingK = pagingK,
             Seasons = seasons,
-            MatchColours = matchColours,
-            MatchStrength = matchStrength / 100,
             Exposure = exposure,
             CacheLimitBytes = (long)(cacheLimitGb * (1L << 30)),
             ReadLog = readLog,

@@ -20,6 +20,7 @@ internal sealed class MountSession : IDisposable
     private readonly Daylight _daylight;
     private readonly FlightRecorder _recorder = new();
     private readonly CpuMeter _cpu = new();
+    private BuildBufferPool? _buffers;
     private readonly SceneryLoads _loads;
     private readonly List<ReportSample> _timeline = [];
     private readonly DateTime _startedUtc = DateTime.UtcNow;
@@ -31,7 +32,6 @@ internal sealed class MountSession : IDisposable
     private SeasonClock? _seasons;
     /// <summary>The satellite record the grass and fields are coloured by, with season = satellite.</summary>
     private ObservedSeasons? _observed;
-    private ColourMatcher? _colours;
     /// <summary>The night textures' painting, shared by every package.</summary>
     private NightPainting? _nightPainting;
     private Task? _summaryLoop, _sampleLoop;
@@ -79,7 +79,7 @@ internal sealed class MountSession : IDisposable
         foreach (string folder in s.NotPackages) Log.Info($"Skipping {folder}: not a scenery package (it has no Earth nav data folder)");
         Log.Info($"Textures at level-change {s.Textures.LevelChange}: {s.Textures.Describe()}; cached in {s.PlanCache}");
         if (s.IgnoredTextureQuality is { } quality)
-            Log.Info($"texture-quality = {quality} in the settings is no longer used: the texture size follows the level ({s.Textures.SizeLimit} px at level {s.Textures.LevelChange})");
+            Log.Info($"texture-quality = {quality} in the settings is no longer used: the texture size follows the level ({s.Textures.Describe()} at level {s.Textures.LevelChange})");
         Directory.CreateDirectory(s.PlanCache);
 
         // Builds await downloads and run CPU work on the pool; keep enough threads ready for bursts.
@@ -96,15 +96,19 @@ internal sealed class MountSession : IDisposable
         // The low-zoom base far scenery is drawn from: shared by every setup and package, kept when a setup is deleted.
         TileStore? store = streaming && s.Providers![0].Name != ImageryProvider.Synthetic ? new TileStore(Path.Join(s.Cache, TileStore.FolderName)) : null;
         _tiles = s.Providers is null ? null : new TileSource(s.Providers, s.DownloadWorkers, s.DownloadTimeout, s.DownloadAttempts) { Store = store };
-        // One downloader and one encoder for all packages: the tile downloads and the CPU limits are shared.
-        TextureBuilder? builder = _tiles is null ? null : new TextureBuilder(_tiles, s.EncoderWorkers);
-        var textureOptions = new TextureOptions(_tiles?.Provider ?? "", s.Textures, s.DdsBuildWorkers, s.Background, s.ProvisionalLod, s.ProvisionalWait);
-        var model = new PagingModel(s.PagingK);
         // Builds run within two budgets, each counted at its own size: --build-memory for the pictures they hold while their
-        // tiles arrive (75 MB at 4096 px; the small levels far scenery needs almost nothing), and --build-tiles for what
+        // tiles arrive (74 MB at 4096 px; the small levels far scenery needs almost nothing), and --build-tiles for what
         // they download, so finer imagery (4096 tiles for a ZL16 texture at zoom 18) does not fill the connection.
         long buildMemory = (long)s.BuildMemoryMb << 20;
         int largest = Math.Max(s.Textures.SizeFor(16), s.Textures.SizeFor(18));
+        // Between builds the pool keeps the pictures of one full-size build for the next (295 MB at 8192 px); more builds
+        // at once take new ones, given back to the garbage collector when they end. Keeping the whole build memory held
+        // up to 1 GB idle that X-Plane could have used.
+        _buffers = new BuildBufferPool(Math.Min(buildMemory, TextureStreamer.BuildWeight(largest)));
+        // One downloader and one encoder for all packages: the tile downloads and the CPU limits are shared.
+        TextureBuilder? builder = _tiles is null ? null : new TextureBuilder(_tiles, s.EncoderWorkers, _buffers);
+        var textureOptions = new TextureOptions(_tiles?.Provider ?? "", s.Textures, s.DdsBuildWorkers, s.Background, s.ProvisionalLod, s.ProvisionalWait);
+        var model = new PagingModel(s.PagingK);
         long fullTiles = TextureStreamer.BuildTiles(new TextureName(0, 0, "BI", 16), s.Textures.FetchZoom(16));
         long fullAtOnce = Math.Max(1, Math.Min(buildMemory / TextureStreamer.BuildWeight(largest), s.BuildTiles / fullTiles));
         long aheadAtOnce = Math.Max(1, Math.Min(fullAtOnce, TextureStreamer.AheadTiles(s.BuildTiles) / fullTiles));
@@ -122,24 +126,16 @@ internal sealed class MountSession : IDisposable
         if (s.Seasons.On && s.Providers is not null)
         {
             _observed = s.Seasons.Choice == SeasonChoice.Satellite ? StartSatelliteSeasons(s) : null;
-            _seasons = new SeasonClock(s.Seasons, Path.Join(AppPaths.History, SeasonClock.DayFileName), _observed);
+            _seasons = new SeasonClock(s.Seasons, Path.Join(AppPaths.History, SeasonClock.DayFileName), _observed, s.Exposure);
             Log.Step($"Seasons: on at {s.Seasons.Strength:P0}, " +
                      (!s.Seasons.FollowsDate ? $"set to {s.Seasons.Choice} everywhere"
                          : $"by X-Plane's date (until it sends one: {SeasonClock.Describe(_seasons.Day)})" +
                            (_observed is null ? "" : ", grass and fields by each place's satellite record")));
         }
-        if (s.MatchColours && store is not null && builder is not null)
-        {
-            _colours = new ColourMatcher(name => builder.TryStoredRegion(name, store.MaxZoom), builder.ResizeTo,
-                Path.Join(AppPaths.History, ColourMatcher.FileName), s.MatchStrength);
-            Log.Step($"Colour matching: on at {s.MatchStrength:P0}; photos from different captures are evened out against the low-zoom base");
-        }
-        else if (s.MatchColours)
-        {
-            Log.Warning("Colour matching needs mip streaming and an imagery provider with a low-zoom base; it is off for this run");
-        }
-        ushort[]? exposure = Exposure.TableFor(s.Exposure);
-        if (exposure is not null) Log.Step($"Exposure: {s.Exposure:0} %; the photos are darkened as X-Plane reads them");
+        // The photos' colours with the seasons off: the contrast always, and the exposure.
+        ushort[] colours = PhotoColours.TableFor(SeasonState.Summer, s.Exposure);
+        Log.Info($"Photos: sharpness {Sharpening.Strength:P0} as textures are built, contrast {Contrast.Strength:P0} as X-Plane reads them");
+        if (Exposure.Percent(s.Exposure) < Exposure.Full) Log.Step($"Exposure: {s.Exposure:0} %; the photos are darkened as X-Plane reads them");
         if (s.TextureStore is not null) Log.Info($"Lazy local DDS store: {s.TextureStore}");
         if (s.LazyTerrainListing)
             Log.Info("Terrain directory listing is lazy; DSF-referenced definitions remain available by direct path");
@@ -163,7 +159,7 @@ internal sealed class MountSession : IDisposable
                 Log.Info($"Removed {oldNights} night textures an earlier version kept whole; they are painted again, keeping only what X-Plane reads");
             roots.RenameToCacheNames();
             _mounts.Add(new PackageMount(package, roots, builder, textureOptions, s.TrackAircraft, s.LoadAhead, s.LazyTerrainListing, decals,
-                streaming ? new TextureStreamer(roots, builder!, _view, model, streamingOptions, nightPause, _readLog, package.Name, altitude) : null, _view, _readLog, _seasons, _usage, _colours, _loads, exposure,
+                streaming ? new TextureStreamer(roots, builder!, _view, model, streamingOptions, nightPause, _readLog, package.Name, altitude) : null, _view, _readLog, _seasons, _usage, _loads, colours,
                 nightPainting is null ? null : new NightTextures(package.Cache, s.Textures.SizeFor, nightPainting)));
             Log.Info($"Package {package.Name}: read-only from {package.Source}, cache overlay {package.Cache}, mounted at {package.Mountpoint}");
         }
@@ -268,13 +264,12 @@ internal sealed class MountSession : IDisposable
                 if (mount.Overlay.Night is { } night && night.Counts is var (painted, dark, time, kept) && painted + dark > 0)
                     Log.Info($"{label}Night lights: {painted} paintings in {time.TotalSeconds:F1} s ({kept / 1048576.0:F0} MB written to the cache, compressed), {dark} places without lights");
             }
-            Log.Info(_cpu.Summary());
+            Log.Info(LoadSummary());
             if (_seasons?.Summary() is { } seasons) Log.Info(seasons);
             ReviewFlight();
             ReportFlight();
         }
         _usage?.Save();
-        _colours?.Save();
         // The summaries go to disk before the wait for running builds: a closing window gives only a few seconds.
         Log.Flush(TimeSpan.FromSeconds(1));
         Task[] shutdowns = [.. _mounts.Select(m => m.Scheduler?.ShutdownAsync() ?? m.Streamer?.ShutdownAsync()).OfType<Task>()];
@@ -506,7 +501,6 @@ internal sealed class MountSession : IDisposable
             if (_timeline.Count % 60 == 0) // every 5 minutes
             {
                 _usage?.Save();
-                _colours?.Save();
             }
             if (_timeline.Count % 12 == 0 && _mounts.Any(m => m.Streamer is not null)) // every minute
             {
@@ -533,7 +527,11 @@ internal sealed class MountSession : IDisposable
                 logged[i] = overlay.SummaryVersion;
                 Log.Info(Label(_mounts[i]) + summary);
             }
-            Log.Info(_cpu.Summary());
+            Log.Info(LoadSummary());
         }
     }
+
+    /// <summary>The CPU and memory line, with the build pictures in it (in use, and kept for the next builds).</summary>
+    private string LoadSummary() =>
+        _cpu.Summary() + (_buffers is { } b ? $"; build pictures {b.RentedBytes >> 20} MB in use, {b.KeptBytes >> 20} MB kept" : "");
 }

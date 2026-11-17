@@ -8,12 +8,15 @@ internal sealed record BuildResult(
     double DownloadS, double FetchStitchS, double ResizeS, double MipmapS, double BC1EncodeS,
     double EncodeS, double WriteS, double TotalS);
 
-/// <summary>Builds DDS textures from source tiles: fetch, stitch, resize, mipmaps, BC1, atomic write.</summary>
-internal sealed class TextureBuilder(TileSource tiles, int encoderWorkers)
+/// <summary>Builds DDS textures from source tiles: fetch, stitch, resize, sharpen, mipmaps, BC1, atomic write.</summary>
+/// <param name="buffers">The pictures streamed builds work in (default: <see cref="BuildBufferPool.DefaultCapacityBytes"/>).</param>
+internal sealed class TextureBuilder(TileSource tiles, int encoderWorkers, BuildBufferPool? buffers = null)
 {
     public int EncoderWorkers { get; } = Math.Clamp(encoderWorkers, 1, 16);
 
     public TileSource Source => tiles;
+
+    public BuildBufferPool Buffers { get; } = buffers ?? new BuildBufferPool(BuildBufferPool.DefaultCapacityBytes);
 
     /// <summary>
     /// Builds <paramref name="textureName"/> from tiles at (file zoom + <paramref name="levelChange"/>).
@@ -40,7 +43,7 @@ internal sealed class TextureBuilder(TileSource tiles, int encoderWorkers)
 
         double encodeStarted = total.Elapsed.TotalSeconds;
         var resize = Stopwatch.StartNew();
-        byte[] baseImage = ResizeTo(stitched, stitchedSize, size);
+        byte[] baseImage = PictureAt(stitched, stitchedSize, size);
         resize.Stop();
         byte[] dds = Dds.Encode(baseImage, size, size, EncoderWorkers, out double mipmapS, out double bc1S);
         double writeS = AtomicFile.Write(destination, dds);
@@ -58,15 +61,15 @@ internal sealed class TextureBuilder(TileSource tiles, int encoderWorkers)
         int size = layout.SizeOf(firstMip);
         using IDisposable buildScope = tiles.BeginBuild();
         // The stitched picture lives only for this build: pooled, so builds reuse it instead of each leaving up to
-        // 48 MB of large object behind.
+        // 192 MB of large object behind.
         var (image, imageSize, pooled) = await FetchRegionAsync(name, zoom, size, ticket, stats, pool: true).ConfigureAwait(false);
         try
         {
-            return Dds.EncodeChain(ResizeTo(image, imageSize, size), layout, firstMip, EncoderWorkers);
+            return Dds.EncodeChain(PictureAt(image, imageSize, size), layout, firstMip, EncoderWorkers, Buffers);
         }
         finally
         {
-            if (pooled) ArrayPool<byte>.Shared.Return(image);
+            if (pooled) Buffers.Return(image);
         }
     }
 
@@ -83,8 +86,7 @@ internal sealed class TextureBuilder(TileSource tiles, int encoderWorkers)
     }
 
     /// <param name="pool">
-    /// Stitch into an array from <see cref="ArrayPool{T}.Shared"/> (it may be longer than the image); when the result
-    /// says Pooled, the caller returns it there once done.
+    /// Stitch into an array from <see cref="Buffers"/>; when the result says Pooled, the caller returns it there once done.
     /// </param>
     private async Task<(byte[] Rgb, int Size, bool Pooled)> FetchRegionAsync(TextureName name, int zoom, int size, FetchTicket ticket, TileStats stats, bool pool)
     {
@@ -114,7 +116,7 @@ internal sealed class TextureBuilder(TileSource tiles, int encoderWorkers)
         }
         int length = stitchedSize * stitchedSize * 3;
         // Every pixel is written by a tile, so a pooled array needs no clearing.
-        byte[] stitched = pool ? ArrayPool<byte>.Shared.Rent(length) : new byte[length];
+        byte[] stitched = pool ? Buffers.Rent(length) : new byte[length];
         try
         {
             var jobs = new Task[span * span];
@@ -124,7 +126,7 @@ internal sealed class TextureBuilder(TileSource tiles, int encoderWorkers)
         }
         catch
         {
-            if (pool) ArrayPool<byte>.Shared.Return(stitched);
+            if (pool) Buffers.Return(stitched);
             throw;
         }
         return (stitched, stitchedSize, pool);
@@ -171,6 +173,17 @@ internal sealed class TextureBuilder(TileSource tiles, int encoderWorkers)
         for (int column = 0; column < span; column++)
             if (!store.Contains(originX + column, originY + row, zoom)) return false;
         return true;
+    }
+
+    /// <summary>
+    /// A texture's picture at <paramref name="size"/>, what its levels are made from: <see cref="ResizeTo"/>, then
+    /// sharpened (<see cref="Sharpening"/>). An image already that size is sharpened in place.
+    /// </summary>
+    public byte[] PictureAt(byte[] image, int imageSize, int size)
+    {
+        byte[] picture = ResizeTo(image, imageSize, size);
+        Sharpening.Apply(picture, size, size, EncoderWorkers);
+        return picture;
     }
 
     /// <summary>Stretches a square image to <paramref name="size"/>: bicubic up, box-halving and bicubic down.</summary>
@@ -222,26 +235,43 @@ internal sealed class TextureBuilder(TileSource tiles, int encoderWorkers)
         byte[] destination, int width, int tilePx, TileStats stats)
     {
         int tileX = originX + column, tileY = originY + row;
-        byte[] pixels;
+        SourceTile tile;
         try
         {
-            pixels = await tiles.GetTileAsync(tileX, tileY, zoom, ticket, stats).ConfigureAwait(false);
+            tile = await tiles.GetSourceTileAsync(tileX, tileY, zoom, ticket, stats).ConfigureAwait(false);
         }
         catch (TileNotAvailableException) when (FromParent(tileX, tileY, zoom) is { } parent)
         {
             // No provider has this tile (a network failure is not caught: the texture is built again later instead).
-            pixels = parent.Pixels;
+            tile = SourceTile.FromRgb(parent.Pixels);
             Interlocked.Increment(ref stats.FromParents);
             Log.Detail($"Tile {zoom}/{tileX}/{tileY} has no imagery: made from its zoom {parent.Zoom} tile");
         }
-        int px = Tiles.TilePx;
-        while (px > tilePx)
+
+        // The pixels and their smaller versions take turns in two pooled buffers: a new 192 KB array per tile is a
+        // large object, collected only in full collections.
+        byte[] full = ArrayPool<byte>.Shared.Rent(Tiles.TileBytes);
+        byte[]? half = null;
+        try
         {
-            pixels = MipFilter.Half(pixels, px, px, 1); // in linear light, as the mip levels below it
-            px >>= 1;
+            tile.CopyPixelsTo(full);
+            byte[] pixels = full;
+            int px = Tiles.TilePx;
+            while (px > tilePx)
+            {
+                byte[] next = pixels == full ? half ??= ArrayPool<byte>.Shared.Rent(Tiles.TileBytes / 4) : full;
+                MipFilter.HalfInto(pixels, px, px, next, 1); // in linear light, as the mip levels below it
+                pixels = next;
+                px >>= 1;
+            }
+            int rowBytes = px * 3, left = column * px, top = row * px;
+            for (int y = 0; y < px; y++)
+                Buffer.BlockCopy(pixels, y * rowBytes, destination, ((top + y) * width + left) * 3, rowBytes);
         }
-        int rowBytes = px * 3, left = column * px, top = row * px;
-        for (int y = 0; y < px; y++)
-            Buffer.BlockCopy(pixels, y * rowBytes, destination, ((top + y) * width + left) * 3, rowBytes);
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(full);
+            if (half is not null) ArrayPool<byte>.Shared.Return(half);
+        }
     }
 }

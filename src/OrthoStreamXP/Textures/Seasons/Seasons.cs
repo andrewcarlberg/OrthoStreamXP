@@ -1,11 +1,10 @@
-using System.Collections.Concurrent;
-
 namespace OrthoStreamXP.Textures;
 
 /// <summary>
 /// Seasonal colour for the imagery, applied to the BC1 blocks of a DDS as X-Plane reads it: each 4 x 4 block is two
 /// colours and a blend between them per pixel, so recolouring the two colours recolours the block. A BC1 colour has
-/// 65,536 values, so a season is one lookup table, and a 64 KB read takes microseconds. The cache keeps the imagery as
+/// 65,536 values, so a season is made into one lookup table with the other adjustments (<see cref="PhotoColours"/>),
+/// and a 64 KB read takes microseconds. The cache keeps the imagery as
 /// downloaded; a season, a strength or switching it off never costs a download.
 /// <para>
 /// The change is a smooth function of colour alone, so it has no mask edges: greens (vegetation) move with the season,
@@ -15,36 +14,13 @@ namespace OrthoStreamXP.Textures;
 /// </summary>
 internal static class Seasons
 {
-    private static readonly ConcurrentDictionary<int, ushort[]> Tables = new();
-
-    /// <summary>The lookup table of a season, or null when it changes nothing, shared by every texture.</summary>
-    public static ushort[]? TableFor(SeasonState state)
-    {
-        if (state.IsSummer) return null;
-        int key = StateKey(state);
-        if (Tables.TryGetValue(key, out ushort[]? table)) return table;
-        if (Tables.Count > 1024) Tables.Clear();
-        return Tables.GetOrAdd(key, _ => Build(Quantised(state)));
-    }
-
     /// <summary>A season quantised to 1/32: neighbouring textures share a table, and a season is still a smooth change.</summary>
-    private static int StateKey(SeasonState state) => (Q(state.Spring) << 18) | (Q(state.Autumn) << 12) | (Q(state.Bare) << 6) | Q(state.Dormant);
+    internal static int StateKey(SeasonState state) => (Q(state.Spring) << 18) | (Q(state.Autumn) << 12) | (Q(state.Bare) << 6) | Q(state.Dormant);
 
-    private static SeasonState Quantised(SeasonState state) => new(Q(state.Spring) / 32.0, Q(state.Autumn) / 32.0, Q(state.Bare) / 32.0, Q(state.Dormant) / 32.0);
+    /// <summary>The season a table of <see cref="StateKey"/> is made for.</summary>
+    internal static SeasonState Quantised(SeasonState state) => new(Q(state.Spring) / 32.0, Q(state.Autumn) / 32.0, Q(state.Bare) / 32.0, Q(state.Dormant) / 32.0);
 
     private static int Q(double v) => (int)Math.Round(Math.Clamp(v, 0, 1) * 32);
-
-    private static ushort[] Build(SeasonState state)
-    {
-        var table = new ushort[65536];
-        for (int c = 0; c < table.Length; c++)
-        {
-            var (r, g, b) = ColourTable.Decode565(c);
-            var (r2, g2, b2) = Recolor(r, g, b, state);
-            table[c] = (ushort)ColourTable.Encode565(r2, g2, b2);
-        }
-        return table;
-    }
 
     /// <summary>One colour (0-255 per channel) in a season.</summary>
     internal static (double R, double G, double B) Recolor(double r, double g, double b, SeasonState s)

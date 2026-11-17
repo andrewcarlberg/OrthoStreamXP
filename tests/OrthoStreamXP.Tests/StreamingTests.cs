@@ -208,11 +208,11 @@ public sealed class StreamingTests : IDisposable
     [Fact]
     public void Each_level_is_fetched_at_the_zoom_it_needs()
     {
-        var plan = new TexturePlan(0, TextureSizing.MaxSize); // Ultra: ZL16 textures 4096 px from zoom 17
+        var plan = new TexturePlan(0, TextureSizing.MaxSize); // Ultra: ZL16 textures 8192 px from zoom 17
         var zl16 = new StreamedTexture(Texture(), TextureName.TryParseFile(Stem + ".dds", out var name) ? name : default, plan, 12);
-        Assert.Equal(4096, zl16.Layout.Size);
-        Assert.Equal([17, 15, 14, 13, 12], Enumerable.Range(0, 5).Select(zl16.ZoomFor));
-        Assert.Equal(4, zl16.BaseMip); // level 4 of a ZL16 texture is one ZL12 tile
+        Assert.Equal(8192, zl16.Layout.Size);
+        Assert.Equal([17, 16, 15, 14, 13, 12], Enumerable.Range(0, 6).Select(zl16.ZoomFor));
+        Assert.Equal(5, zl16.BaseMip); // level 5 of an 8192 px ZL16 texture is one ZL12 tile
 
         var coarse = new StreamedTexture(Texture(), name, new TexturePlan(-2, TextureSizing.MaxSize), 12);
         Assert.Equal((2048, 15, 3), (coarse.Layout.Size, coarse.ZoomFor(0), coarse.BaseMip));
@@ -222,22 +222,27 @@ public sealed class StreamingTests : IDisposable
     public void The_programs_zoom_13_base_is_one_level_sharper()
     {
         TextureName name = TextureName.TryParseFile(Stem + ".dds", out var parsed) ? parsed : default;
-        // Extra and Ultra: 4096 px from zoom 17, the base level 3 (four ZL13 tiles, 512 px) instead of 4.
+        // Extra and Ultra: 8192 px from zoom 17, the base level 4 (four ZL13 tiles, 512 px) instead of 5.
         var extra = new StreamedTexture(Texture(), name, new TexturePlan(1), TileStore.DefaultMaxZoom);
-        Assert.Equal((4096, 13, 3), (extra.Layout.Size, extra.ZoomFor(3), extra.BaseMip));
-        // Balanced: 1024 px from zoom 15, the base level 1, inside the near band: a near read of it is the base.
+        Assert.Equal((8192, 13, 4), (extra.Layout.Size, extra.ZoomFor(4), extra.BaseMip));
+        // Balanced: 2048 px from zoom 15, the base level 2 (512 px), past the near band: a far read, answered at once.
         var balanced = new StreamedTexture(Texture(), name, new TexturePlan(-2), TileStore.DefaultMaxZoom);
-        Assert.Equal((1024, 13, 1), (balanced.Layout.Size, balanced.ZoomFor(1), balanced.BaseMip));
-        Assert.Equal(Band.Near, TextureStreamer.BandOf(balanced, balanced.BaseMip));
+        Assert.Equal((2048, 13, 2), (balanced.Layout.Size, balanced.ZoomFor(2), balanced.BaseMip));
+        Assert.Equal(Band.Far, TextureStreamer.BandOf(balanced, balanced.BaseMip));
     }
 
     // ---------------------------------------------------------------- reads
 
+    /// <summary>A position far from <paramref name="t"/> while flying: the start is over, and its reads are far.</summary>
+    private static void Flying(Setup s, StreamedTexture t) =>
+        s.View.Update(new CameraReport(t.Lat - 3, t.Lon, 300, null, new Motion(60, 0), false, DateTime.UtcNow));
+
     [Fact]
-    public async Task A_far_read_is_answered_at_once_and_its_one_base_tile_is_fetched_behind_it()
+    public async Task In_flight_a_far_read_is_answered_at_once_and_its_one_base_tile_is_fetched_behind_it()
     {
         Setup s = Streaming();
         StreamedTexture t = s.Streamer.Get(Texture())!;
+        Flying(s, t);
 
         var (first, answer) = ReadLevel(s.Streamer, t, t.BaseMip);
         Assert.Equal((Band.Far, Served.Flat), (answer.Band, answer.Served)); // nothing of the place at hand yet
@@ -250,6 +255,39 @@ public sealed class StreamingTests : IDisposable
         AssertColor(TileColor, second, t.Layout.SizeOf(t.BaseMip));
         Assert.Equal([12], Zooms(s.Server)); // one ZL12 tile, kept in the low-zoom base
         Assert.True(s.Tiles.Store!.Contains(35824 >> 4, 21904 >> 4, 12));
+    }
+
+    [Fact]
+    public void At_a_start_a_far_read_with_nothing_at_hand_waits_for_its_base_tile_instead_of_a_flat_colour()
+    {
+        // The first start with a new cache, 17 Nov: X-Plane loaded the whole area before the base tiles were in,
+        // 1007 far reads got one flat colour, and it read only a third of those textures again.
+        Setup s = Streaming(delay: z => z == 12 ? TimeSpan.FromSeconds(1.5) : TimeSpan.Zero);
+        StreamedTexture t = s.Streamer.Get(Texture())!;
+        Assert.True(s.View.Starting); // no position yet
+
+        var (bytes, answer) = ReadLevel(s.Streamer, t, t.BaseMip);
+
+        Assert.Equal((Band.Far, Served.Real), (answer.Band, answer.Served));
+        Assert.True(answer.WaitMs > 1000, $"waited {answer.WaitMs} ms for the 1.5 s base tile");
+        AssertColor(TileColor, bytes, t.Layout.SizeOf(t.BaseMip));
+        StreamingFacts facts = s.Streamer.Facts();
+        Assert.Equal((0L, 0L), (facts.StartWaits, facts.FlightWaits)); // not the tuning's near and middle waits
+    }
+
+    [Fact]
+    public void At_a_start_a_far_read_with_a_coarser_tile_at_hand_gets_a_stand_in_at_once()
+    {
+        Setup s = Streaming(delay: z => z == 12 ? TimeSpan.FromSeconds(1.5) : TimeSpan.Zero);
+        StreamedTexture t = s.Streamer.Get(Texture())!;
+        s.Tiles.Store!.Save(35824 >> 5, 21904 >> 5, 11, FakeTileServer.Tile); // the zoom 11 tile around it, from an earlier flight
+        Assert.True(s.View.Starting);
+
+        var (bytes, answer) = ReadLevel(s.Streamer, t, t.BaseMip);
+
+        Assert.Equal((Band.Far, Served.StandIn), (answer.Band, answer.Served)); // the right picture, only blurrier
+        Assert.Equal(0, answer.WaitMs);
+        AssertColor(TileColor, bytes, t.Layout.SizeOf(t.BaseMip));
     }
 
     [Fact]
@@ -346,6 +384,7 @@ public sealed class StreamingTests : IDisposable
         int mip = t.BaseMip, half = t.Layout.LengthOf(mip) / 2;
         var cursor = new ReadCursor();
         byte[] firstHalf = new byte[half], secondHalf = new byte[half];
+        Flying(s, t); // at a start the first half would wait for the base tile
 
         s.Streamer.Read(t, cursor, t.Layout.Offset(mip), firstHalf); // flat: nothing at hand
         await Until(() => s.Streamer.RealFrom(t) <= mip);
@@ -694,8 +733,10 @@ public sealed class StreamingTests : IDisposable
     // ---------------------------------------------------------------- load-ahead
 
     [Fact]
-    public async Task Before_a_position_arrives_load_ahead_fetches_one_base_tile_per_texture()
+    public async Task Before_a_position_arrives_load_ahead_fetches_the_level_XPlane_reads_at_load()
     {
+        // These 1024 px textures have their base at zoom 12 (256 px): the 512 px level X-Plane reads when it loads them
+        // is level 1, four zoom 13 tiles, as a ZL18 texture's is in a real package.
         Setup s = Streaming();
         var catalog = new TextureCatalog();
         using var warmer = new MipWarmer(catalog, s.Streamer, s.View, heavy: 2);
@@ -703,12 +744,12 @@ public sealed class StreamingTests : IDisposable
         catalog.AddTerrain(VirtualPath.Of("terrain", "21904_35840_BI16.ter"));
 
         warmer.StartWhatFits();
-        await Until(() => catalog.Entries.All(e => s.Streamer.RealFrom(s.Streamer.Get(e.Texture)!) <= 2));
-        Assert.Equal([12, 12], Zooms(s.Server));
+        await Until(() => catalog.Entries.All(e => s.Streamer.RealFrom(s.Streamer.Get(e.Texture)!) <= 1));
+        Assert.Equal(Enumerable.Repeat(13, 8), Zooms(s.Server));
     }
 
     [Fact]
-    public async Task With_the_camera_beside_a_texture_load_ahead_fetches_it_in_full_and_the_far_one_as_a_base_tile()
+    public async Task With_the_camera_beside_a_texture_load_ahead_fetches_it_in_full_and_the_far_one_at_the_level_XPlane_reads_at_load()
     {
         Setup s = Streaming();
         var catalog = new TextureCatalog();
@@ -719,9 +760,60 @@ public sealed class StreamingTests : IDisposable
         catalog.AddTerrain(VirtualPath.Of("terrain", "21904_36144_BI16.ter"));
 
         warmer.StartWhatFits();
-        await Until(() => s.Streamer.RealFrom(near) == 0 && s.Streamer.RealFrom(far) <= far.BaseMip);
+        await Until(() => s.Streamer.RealFrom(near) == 0 && s.Streamer.RealFrom(far) <= MipWarmer.LoadMip(far));
         Assert.Equal(16, Zooms(s.Server).Count(z => z == 14));
-        Assert.Equal(1, Zooms(s.Server).Count(z => z == 12));
+        Assert.Equal(4, Zooms(s.Server).Count(z => z == 13));
+        Assert.DoesNotContain(12, Zooms(s.Server));
+    }
+
+    [Fact]
+    public void The_level_XPlane_reads_at_load_is_the_512_px_one_at_most_the_base()
+    {
+        // Extra (level +1): 8192 px textures, ZL16 from zoom 17, ZL18 from zoom 19, the low-zoom base at zoom 13.
+        var extra = new TexturePlan(1, TextureSizing.MaxSize);
+        var zl16 = new StreamedTexture(Texture(), new TextureName(21904, 35824, "BI", 16), extra, baseZoom: 13);
+        var zl18 = new StreamedTexture(Texture("89376_140560_BI18"), new TextureName(89376, 140560, "BI", 18), extra, baseZoom: 13);
+
+        // ZL16: the 512 px level is the base (four zoom 13 tiles); ZL18: four zoom 15 tiles, above its base level 6.
+        Assert.Equal((4, 4, 512), (MipWarmer.LoadMip(zl16), zl16.BaseMip, zl16.Layout.SizeOf(4)));
+        Assert.Equal((4, 6, 15), (MipWarmer.LoadMip(zl18), zl18.BaseMip, zl18.ZoomFor(4)));
+        // A texture no larger than 512 px is read whole.
+        Assert.Equal(0, MipWarmer.LoadMip(new StreamedTexture(Texture(), new TextureName(21904, 35824, "BI", 16), new TexturePlan(1, Limit: 512), baseZoom: 13)));
+    }
+
+    [Fact]
+    public async Task A_tile_ahead_has_its_textures_fetched_at_the_level_XPlane_reads_at_load_before_it_loads_them()
+    {
+        Setup s = Streaming();
+        using var warmer = new MipWarmer(new TextureCatalog(), s.Streamer, s.View, heavy: 2);
+        var tile = new SceneryTile(47, 11);
+        string dsf = Path.Join(s.Roots.Source, tile.DsfPath);
+        Directory.CreateDirectory(Path.GetDirectoryName(dsf)!);
+        File.WriteAllBytes(dsf, UpcomingSceneryTests.Dsf("terrain_Water", "terrain/21904_35824_BI16.ter", "terrain/21904_35840_BI16.ter",
+            "terrain/21904_35840_BI16_water_overlay.ter"));
+        using var upcoming = new UpcomingScenery(s.Roots.Source, s.View, new SceneryLoads(s.View), warmer);
+
+        Assert.Equal(2, upcoming.Ready(tile)); // the overlay's texture is one of the two
+        Assert.Equal(0, upcoming.Ready(tile)); // once
+        Assert.Equal(0, upcoming.Ready(new SceneryTile(48, 11))); // not in the package
+
+        warmer.StartWhatFits();
+        StreamedTexture[] textures = [s.Streamer.Get(Texture())!, s.Streamer.Get(Texture("21904_35840_BI16"))!];
+        await Until(() => textures.All(t => s.Streamer.RealFrom(t) <= MipWarmer.LoadMip(t)));
+        Assert.Equal(Enumerable.Repeat(13, 8), Zooms(s.Server)); // their 512 px level: four zoom 13 tiles each
+    }
+
+    [Fact]
+    public void A_far_texture_XPlane_just_opened_is_fetched_at_its_load_level_as_soon_as_a_middle_distance_one()
+    {
+        Setup s = Streaming();
+        using var warmer = new MipWarmer(new TextureCatalog(), s.Streamer, s.View, heavy: 2);
+        StreamedTexture here = s.Streamer.Get(Texture())!;
+        s.View.Update(new CameraReport(here.Lat, here.Lon, 2, null, null, false, DateTime.UtcNow));
+
+        var target = warmer.Target(Texture("21904_36144_BI16"))!.Value; // 20 textures east: the distance asks for the base
+
+        Assert.Equal((1, FetchPriority.Warm + 1), (target.Mip, target.Priority));
     }
 
     [Fact]
@@ -747,9 +839,11 @@ public sealed class StreamingTests : IDisposable
         using var warmer = new MipWarmer(new TextureCatalog(), s.Streamer, s.View, heavy: 2);
         StreamedTexture here = s.Streamer.Get(Texture())!;
         VirtualPath ahead = Texture("21824_35824_BI16"); // five textures north, about 31 km to its centre
-        // With k = 1830 this 1024 px texture is level 1 out to 25 km (22 km to its near edge): parked, it is level 2.
+        // With k = 1830 this 1024 px texture is level 1 out to 25 km (22 km to its near edge): parked, it is level 2,
+        // raised to level 1 (512 px) as what X-Plane reads when it loads it, but not near scenery's turn.
         s.View.Update(new CameraReport(here.Lat, here.Lon, 2, null, null, false, DateTime.UtcNow));
-        Assert.Equal(2, warmer.Target(ahead)!.Value.Mip);
+        var parked = warmer.Target(ahead)!.Value;
+        Assert.Equal((1, FetchPriority.Warm + 1), (parked.Mip, parked.Priority));
 
         // At 120 m/s straight towards it, it is within 25 km in a minute: fetch level 1 now, as near scenery.
         s.View.Update(new CameraReport(here.Lat, here.Lon, 2, null, new Motion(120, 0), false, DateTime.UtcNow));
@@ -899,6 +993,18 @@ public sealed class StreamingTests : IDisposable
         gate.Release(60); // the first big one ends: the waiting big one, then the small one behind it
         await Task.WhenAll(big, sameLevel);
         Assert.Equal(70, gate.Used);
+    }
+
+    [Fact]
+    public void A_waiting_full_size_build_ahead_of_the_aircraft_does_not_hold_back_a_middle_read()
+    {
+        var gate = new WeightedPriorityGate(budget: 100, maxEntries: 10);
+        _ = gate.WaitAsync(60, () => FetchPriority.NearWarm);                 // a full-size build ahead runs
+        Task ahead = gate.WaitAsync(60, () => FetchPriority.NearWarm);        // the next one waits for memory
+        Task read = gate.WaitAsync(10, () => FetchPriority.ForRead(2));       // X-Plane waits for a middle level
+
+        Assert.True(read.IsCompleted);
+        Assert.False(ahead.IsCompleted);
     }
 
     [Fact]
@@ -1106,12 +1212,14 @@ public sealed class StreamingPartsTests : IDisposable
             Waiter("middle read", new FetchTicket(FetchPriority.ForRead(2))),
             Waiter("big middle read", new FetchTicket(FetchPriority.ForRead(1))),
             Waiter("near read", new FetchTicket(FetchPriority.NearRead)),
+            Waiter("near ahead", new FetchTicket(FetchPriority.NearWarm)),
             Waiter("warm", new FetchTicket(FetchPriority.Warm)),
         ];
-        background.Raise(FetchPriority.NearWarm); // X-Plane now waits for what it was fetching
+        background.Raise(FetchPriority.ForRead(0)); // X-Plane now waits for what it was fetching
         gate.Release();
         await Task.WhenAll(waiters);
-        Assert.Equal(["near read", "background", "big middle read", "middle read", "warm"], order);
+        // Every read X-Plane waits for goes before the work ahead of the aircraft, even next to it.
+        Assert.Equal(["near read", "background", "big middle read", "middle read", "near ahead", "warm"], order);
     }
 
     [Fact]

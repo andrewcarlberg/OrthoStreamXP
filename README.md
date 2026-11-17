@@ -27,7 +27,6 @@ Traditional photo scenery often requires downloading and building large areas be
 - **Better scenery ahead** — OrthoStreamXP follows your aircraft and downloads upcoming areas before you reach them.
 - **Simple quality settings** — choose Balanced, Sharp, Ultra, or Extra without learning dozens of technical parameters.
 - **Settings that adapt to your setup** — test your connection before the first flight to get a recommended preset, and after a sufficiently long flight, get recommendations based on how the scenery performed on your PC and internet connection. You decide whether to apply them.
-- **Even colours** — optionally soften the patchwork look where neighbouring photos were taken on different days, so a grey, hazy patch stands out less.
 - **Seasonal colours** — optionally give summer imagery a more autumnal or winter appearance, based on the simulated date and location, with grass and fields optionally coloured by NASA's satellite record of how green each place really was.
 - **Clean photos up close** — X-Plane's procedural grass and dirt speckles are kept off the aerial photos by default, or faded to the strength you like, without changing your scenery packages.
 - **Towns lit at night** — optionally give the photo scenery street lamps and the light of the houses along X-Plane's roads, so towns glow after dark as on X-Plane's own scenery. You can also skip the detailed photos at night to save downloads, keeping the lights.

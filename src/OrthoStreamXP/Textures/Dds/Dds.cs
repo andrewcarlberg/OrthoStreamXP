@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Text;
@@ -47,13 +46,13 @@ internal static class Dds
     /// The BC1 data of mip levels <paramref name="firstMip"/> to the last of a square texture, as they follow each other
     /// in the file: <paramref name="rgb"/> is level <paramref name="firstMip"/> itself, the smaller ones are 2x2 averages in linear light (<see cref="MipFilter"/>).
     /// </summary>
-    public static byte[] EncodeChain(byte[] rgb, DdsLayout layout, int firstMip, int workers)
+    /// <param name="buffers">Where the smaller levels' pictures come from; without it they are new arrays.</param>
+    public static byte[] EncodeChain(byte[] rgb, DdsLayout layout, int firstMip, int workers, BuildBufferPool? buffers = null)
     {
         byte[] output = new byte[layout.ChainLength(firstMip)];
         int offset = 0;
-        // The smaller levels take turns in two pooled pictures, the size of the first of them: a 4096 px chain made
-        // 16 MB of new large objects per build otherwise.
-        int half = layout.SizeOf(Math.Min(firstMip + 1, layout.Levels - 1)), halfBytes = half * half * 3;
+        // The smaller levels take turns in two pictures, each the size of the first level it holds (a quarter and a
+        // sixteenth of the first one's pixels): a 4096 px chain made 16 MB of new large objects per build otherwise.
         byte[]? even = null, odd = null;
         try
         {
@@ -63,9 +62,8 @@ internal static class Dds
                 int size = layout.SizeOf(mip);
                 if (mip > firstMip)
                 {
-                    byte[] next = (mip - firstMip) % 2 == 1
-                        ? even ??= ArrayPool<byte>.Shared.Rent(halfBytes)
-                        : odd ??= ArrayPool<byte>.Shared.Rent(halfBytes);
+                    int bytes = size * size * 3;
+                    byte[] next = (mip - firstMip) % 2 == 1 ? even ??= Rent(bytes) : odd ??= Rent(bytes);
                     MipFilter.HalfInto(current, size * 2, size * 2, next, workers);
                     current = next;
                 }
@@ -74,10 +72,12 @@ internal static class Dds
         }
         finally
         {
-            if (even is not null) ArrayPool<byte>.Shared.Return(even);
-            if (odd is not null) ArrayPool<byte>.Shared.Return(odd);
+            if (even is not null) buffers?.Return(even);
+            if (odd is not null) buffers?.Return(odd);
         }
         return output;
+
+        byte[] Rent(int bytes) => buffers?.Rent(bytes) ?? new byte[bytes];
     }
 
     /// <summary>The BC1 data of one square level.</summary>
