@@ -81,7 +81,7 @@ No. Move them anywhere else on your PC, for example `D:\OrthoPackages`. OrthoStr
 
 1. Close AutoOrtho.
 2. Move your AutoOrtho scenery packages out of `X-Plane 12\Custom Scenery` to any folder on your PC.
-3. Open `X-Plane 12\Custom Scenery\scenery_packs.ini` and remove the lines for the AutoOrtho packages.
+3. Open `X-Plane 12\Custom Scenery\scenery_packs.ini` and remove the lines for the AutoOrtho packages. If you would rather not edit the file, switch them off on OrthoStreamXP's [X-Plane Custom Scenery](custom-scenery.md) page instead.
 4. Open OrthoStreamXP **without** starting the scenery. In **Settings › Folders**, set the **Scenery packages folder** to the new place.
 5. Click **Start and fly** (or **Start**, then start X-Plane).
 
@@ -90,7 +90,9 @@ No. Move them anywhere else on your PC, for example `D:\OrthoPackages`. OrthoStr
 1. Your packages appear in `X-Plane 12\Custom Scenery`, with the photos added. The packages on disk stay unchanged.
 2. OrthoStreamXP adds them to the end of `scenery_packs.ini`, so airports and overlays stay above them. The previous file is kept as `scenery_packs.ini.bak`.
 
-When you stop OrthoStreamXP, the packages disappear from `Custom Scenery` again.
+When you stop OrthoStreamXP, the packages disappear from `Custom Scenery` again, and the lines it added to `scenery_packs.ini` at the start are taken out.
+
+Packages switched off under **Scenery packages** on the Home page are left out (see [Flying › Leaving a package out](flying.md#leaving-a-package-out)).
 
 ### It downloaded a few pictures and then nothing, and the ground looks like X-Plane's own scenery.
 

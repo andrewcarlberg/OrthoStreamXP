@@ -34,7 +34,16 @@ From top to bottom:
 - **Session figures** (*This session* while it runs, *Last session* after it stops): how many textures X-Plane got, how many of its reads got the real picture, how many textures are being built now, and the download speed or the number of picture tiles downloaded.
 - **X-Plane.** *Waiting for X-Plane* until X-Plane sends the aircraft position, then *Connected* with the aircraft's position and speed. *Paused or in the menu* means X-Plane has stopped sending it for now. There is nothing to set up in X-Plane: OrthoStreamXP finds it on the same PC by itself.
 - **Quality.** Your current preset, with a **Change quality** link.
-- **Scenery packages.** The packages shown in X-Plane while OrthoStreamXP runs.
+- **Scenery packages.** The packages shown in X-Plane while OrthoStreamXP runs, each with a switch (see below).
+
+### Leaving a package out
+
+Each package under **Scenery packages** has a switch. Turn it off to leave that package out of the photo scenery: X-Plane does not see it while OrthoStreamXP runs, but it stays in your scenery packages folder and keeps its textures in the cache. Turn it on again to bring it back. This is handy to leave out a region you are not flying today, or to test a flight without one of your packages.
+
+- The switches can be changed only while OrthoStreamXP is stopped, and a change applies from the next start. While it runs, the list shows the packages in use.
+- At least one region must stay on. An overlay package on its own (such as `OrthoStream_Overlays`, with roads, forests and buildings) has no ground to draw on, so OrthoStreamXP does not start with only overlays switched on.
+
+To switch any of X-Plane's scenery on or off, or to change its order, use the [X-Plane Custom Scenery](custom-scenery.md) page.
 
 ## During the flight
 

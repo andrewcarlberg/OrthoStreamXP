@@ -33,6 +33,7 @@ Traditional photo scenery often requires downloading and building large areas be
 - **Towns lit at night** — optionally give the photo scenery street lamps and the light of the houses along X-Plane's roads, so towns glow after dark as on X-Plane's own scenery. You can also skip the detailed photos at night to save downloads, keeping the lights.
 - **Exposure and a live preview** — tone down photos that look too bright next to X-Plane's own scenery, and see any colour change on a photo from your cache before you fly.
 - **See what happened during your flight** — review download performance, scenery loading, and your flight route.
+- **Your scenery list, without Notepad** — switch X-Plane's scenery packages on or off and drag them into order on the X-Plane Custom Scenery page, and leave any of your photo scenery packages out of a flight with one switch on the Home page.
 
 ### Designed for everyday flying
 
@@ -98,7 +99,7 @@ After flights of at least 10 minutes, OrthoStreamXP may suggest adjustments base
 The Cache page helps you manage the imagery stored on your computer.
 
 - Set a cache limit from 25 GB up to 1 TB.
-- View cached areas on a map.
+- View cached areas on a full-width map you can zoom and drag.
 - Select and delete areas you no longer need.
 - Identify areas you have not flown over recently.
 

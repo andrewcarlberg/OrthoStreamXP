@@ -58,5 +58,8 @@ A square of a downloaded mesh no longer shows X-Plane's own roads, forests and b
 - A region is used from OrthoStreamXP's next start, and never half-installed: it appears in your packages folder only when all of it is there.
 - When a newer release comes out, the region says **Update available**. Updating downloads it again in full.
 - **Delete** removes the region and its roads, forests and buildings. Another region's stay.
+- To fly without a region for a while, without deleting it, switch it off under **Scenery packages** on the Home page (see [Flying › Leaving a package out](flying.md#leaving-a-package-out)).
 
 You can install a new region while OrthoStreamXP runs. Updating or deleting a region needs OrthoStreamXP stopped, because X-Plane has its files open while it runs.
+
+Next: [X-Plane Custom Scenery](custom-scenery.md)

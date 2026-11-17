@@ -84,7 +84,7 @@ Your scenery packages are not changed: OrthoStreamXP adjusts the terrain files a
 
 ### Preview
 
-The top of the tab shows a photo from your cache twice: **Before** (as downloaded) and **After** (as X-Plane will get it with the settings below). It updates as you change them, and **Another photo** picks a different one. The preview needs a cache folder with at least one flown area in it. It works while the scenery is streaming too.
+The top of the tab shows a photo from your cache twice: **Before** (as downloaded) and **After** (as X-Plane will get it with the settings below). It updates as you change them, and **Another photo** picks a different one. The preview needs a cache folder with at least one flown area in it. It works while the scenery is streaming too. When you scroll down to the settings, the preview stays at the top of the tab, so you can see each change as you make it.
 
 ### Colour matching
 
@@ -162,7 +162,7 @@ After flights of 10 minutes or more, Home may suggest settings for your preset (
 
 ![Settings: Other](images/settings-other.png)
 
-- **Keep the photo scenery below airports and overlays:** at every start, moves the packages to the end of X-Plane's `scenery_packs.ini`, so airports and overlays draw on top of the photos. Leave it on unless you order that list yourself.
+- **Keep the photo scenery below airports and overlays:** at every start, moves the packages to the end of X-Plane's `scenery_packs.ini`, so airports and overlays draw on top of the photos. Leave it on unless you order that list yourself. To see and change the list, use the [X-Plane Custom Scenery](custom-scenery.md) page.
 - **X-Plane address:** needed only when X-Plane runs on another PC.
 - **X-Plane start options:** command-line options added when **Start and fly** starts X-Plane, for example `--allow_reshade`. They take effect the next time X-Plane starts.
 

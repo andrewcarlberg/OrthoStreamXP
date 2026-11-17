@@ -18,6 +18,8 @@ The cache holds the pictures OrthoStreamXP downloads and the textures it builds.
 
 The map shows each 1° × 1° area you have flown, pictured from its own textures. Faded squares were not flown for a month; the cache limit removes those first.
 
+The map uses the full width of the window. Scroll to zoom in and out around the pointer, and drag to move the map. The buttons at its side zoom in, zoom out and **Show all areas**. Latitude and longitude lines, labelled along the top and left edges, help you find a place; they come closer together as you zoom in.
+
 To free space by hand:
 
 1. Click the areas you want to remove, or click **Select not flown for a month**.
@@ -38,4 +40,4 @@ Each quality preset keeps its textures in its own folder, so switching presets n
 
 Each row has a folder button that opens it in Explorer and a bin button that deletes it after you confirm.
 
-Next: [Troubleshooting](troubleshooting.md)
+Next: [Packages](packages.md)
