@@ -35,6 +35,8 @@ internal sealed class MountSession : IDisposable
     /// <summary>The night textures' painting, shared by every package.</summary>
     private NightPainting? _nightPainting;
     private Task? _summaryLoop, _sampleLoop;
+    /// <summary>The packages scenery_packs.ini had no entry for at the start: taken out again when this stops, as their folders go with it.</summary>
+    private IReadOnlyList<string> _addedToSceneryPacks = [];
     private bool _stopped;
 
     private MountSession(MountSettings settings)
@@ -191,9 +193,12 @@ internal sealed class MountSession : IDisposable
         }
 
         if (s.CustomScenery is not null && s.UpdateSceneryPacks)
-            Log.Info(SceneryPacks.MoveToEnd(s.CustomScenery, [.. s.Packages.Select(p => p.Name)])
+        {
+            bool changed = SceneryPacks.MoveToEnd(s.CustomScenery, [.. s.Packages.Select(p => p.Name)], out _addedToSceneryPacks);
+            Log.Info(changed
                 ? $"Moved {string.Join(", ", s.Packages.Select(p => p.Name))} to the end of {Path.Join(s.CustomScenery, SceneryPacks.FileName)} (previous file kept as {SceneryPacks.FileName}.bak)"
                 : $"{SceneryPacks.FileName} already lists {string.Join(", ", s.Packages.Select(p => p.Name))} at the end");
+        }
 
         if (_tiles is not null) _ = Task.Run(_tiles.WarmUpAsync);
         foreach (PackageMount mount in _mounts) mount.Mount(s.FileSystemThreads);
@@ -245,6 +250,7 @@ internal sealed class MountSession : IDisposable
         _stopped = true;
         await _summaries.CancelAsync().ConfigureAwait(false);
         foreach (PackageMount mount in _mounts) mount.Unmount();
+        RemoveAddedSceneryPacks();
         _listener?.Stop();
         foreach (PackageMount mount in _mounts)
         {
@@ -437,6 +443,22 @@ internal sealed class MountSession : IDisposable
         Report.Save(FlightReport.PathFor(AppPaths.History));
         Log.Step($"Flight report: {Report.Duration.TotalMinutes:F0} min, {Report.DistanceKm:F0} km, {CacheInventory.FormatBytes(Report.Bytes)} downloaded " +
                  $"(peak {Report.PeakMbits:F0} Mbit/s), {Report.Builds} textures built, {Report.StandIns} reads without their real picture (stand-ins or flat)");
+    }
+
+    /// <summary>Takes the entries the start added out of scenery_packs.ini: their folders are no longer there for X-Plane.</summary>
+    private void RemoveAddedSceneryPacks()
+    {
+        if (_addedToSceneryPacks.Count == 0 || _settings.CustomScenery is not { } customScenery) return;
+        string names = string.Join(", ", _addedToSceneryPacks), file = Path.Join(customScenery, SceneryPacks.FileName);
+        try
+        {
+            if (SceneryPacks.RemoveEntries(customScenery, _addedToSceneryPacks))
+                Log.Info($"Removed {names} from {file} (added at the start)");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.Warning($"Could not remove {names} from {file}: {ex.Message}");
+        }
     }
 
     /// <summary>Stops without the summaries, if <see cref="StopAsync(bool)"/> was not called.</summary>

@@ -13,6 +13,7 @@ internal static class SettingNames
         ["xplane"] = "X-Plane folder",
         ["base-packages"] = "Scenery packages folder",
         ["source"] = "Scenery packages folder",
+        [SkippedPackages.Setting] = "Scenery packages switched off",
         ["cache"] = "Cache folder",
         ["texture-provider"] = "Where the pictures come from",
         ["download-workers"] = "Downloads at once",

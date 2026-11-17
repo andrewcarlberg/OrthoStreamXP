@@ -5,7 +5,7 @@ namespace OrthoStreamXP.Scenery;
 /// <summary>
 /// Finds the scenery packages in a folder of base packages, and keeps the mounted ones at the end of
 /// X-Plane's Custom Scenery\scenery_packs.ini: the end has the lowest priority, so airports, overlays and
-/// other scenery listed above them stay on top of the photo base.
+/// other scenery listed above them stay on top of the photo base. The entries a mount added are taken out again when it stops.
 /// </summary>
 internal static class SceneryPacks
 {
@@ -45,16 +45,43 @@ internal static class SceneryPacks
     /// scenery_packs.ini, adding the missing ones; a disabled entry stays disabled. The previous file is kept
     /// as scenery_packs.ini.bak. Returns whether the file changed.
     /// </summary>
-    public static bool MoveToEnd(string customScenery, IReadOnlyList<string> packageNames)
+    public static bool MoveToEnd(string customScenery, IReadOnlyList<string> packageNames) =>
+        MoveToEnd(customScenery, packageNames, out _);
+
+    /// <inheritdoc cref="MoveToEnd(string, IReadOnlyList{string})"/>
+    /// <param name="added">The packages the file had no entry for, which this added.</param>
+    public static bool MoveToEnd(string customScenery, IReadOnlyList<string> packageNames, out IReadOnlyList<string> added)
     {
         string file = Path.Join(customScenery, FileName);
         string? text = File.Exists(file) ? File.ReadAllText(file) : null;
         string[] lines = text is null ? NewFileHeader : text.ReplaceLineEndings("\n").TrimEnd('\n').Split('\n');
+        var listed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string line in lines)
+            if (PackageOf(line, packageNames, out _) is { } name) listed.Add(name);
+        added = [.. packageNames.Where(name => !listed.Contains(name))];
         List<string> updated = Reorder(lines, packageNames);
         if (lines.SequenceEqual(updated)) return false;
         string newline = text is not null && !text.Contains("\r\n", StringComparison.Ordinal) ? "\n" : "\r\n";
         if (text is not null) File.Copy(file, file + ".bak", overwrite: true);
         AtomicFile.Write(file, Encoding.UTF8.GetBytes(string.Join(newline, updated) + newline));
+        return true;
+    }
+
+    /// <summary>
+    /// Takes the entries of <paramref name="packageNames"/> out of scenery_packs.ini: the packages a mount added at its start,
+    /// once it stops and their folders are gone. No .bak is written, so the one kept at the start still holds the file from
+    /// before it. Returns whether the file changed.
+    /// </summary>
+    public static bool RemoveEntries(string customScenery, IReadOnlyList<string> packageNames)
+    {
+        string file = Path.Join(customScenery, FileName);
+        if (packageNames.Count == 0 || !File.Exists(file)) return false;
+        string text = File.ReadAllText(file);
+        string[] lines = text.ReplaceLineEndings("\n").TrimEnd('\n').Split('\n');
+        string[] kept = [.. lines.Where(line => PackageOf(line, packageNames, out _) is null)];
+        if (kept.Length == lines.Length) return false;
+        string newline = text.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+        AtomicFile.Write(file, Encoding.UTF8.GetBytes(string.Join(newline, kept) + newline));
         return true;
     }
 
@@ -133,7 +160,8 @@ internal static class SceneryPacks
         return packageNames.FirstOrDefault(name => folderName.Equals(name, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static bool IsOverlays(string packageName) => packageName.Contains("Overlays", StringComparison.OrdinalIgnoreCase);
+    /// <summary>Whether a package holds only overlays (roads, forests, buildings: XPME_Overlays, OrthoStream_Overlays), not a region's ground.</summary>
+    internal static bool IsOverlays(string packageName) => packageName.Contains("Overlays", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsDownloadedMesh(string packageName) => packageName.StartsWith(DownloadedPrefix, StringComparison.OrdinalIgnoreCase);
 

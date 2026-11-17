@@ -57,6 +57,7 @@ internal sealed class HomeViewModel : ObservableObject, IPage
         Mount.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is not (nameof(MountController.State) or nameof(MountController.Problem))) return;
+            if (e.PropertyName == nameof(MountController.State)) LoadPackages(SettingsDocument.Load(SettingsDocument.DefaultPath));
             if (Mount.State == MountState.Stopped)
             {
                 LoadReview();
@@ -317,7 +318,9 @@ internal sealed class HomeViewModel : ObservableObject, IPage
         private set => Set(ref _packages, value);
     }
 
-    public string PackagesCaption => Mount.IsRunning ? "Shown in X-Plane now" : "Shown in X-Plane while OrthoStreamXP runs";
+    public string PackagesCaption => Mount.IsStopped
+        ? "Shown in X-Plane while OrthoStreamXP runs. Switch a package off to leave it out."
+        : Mount.IsRunning ? "Shown in X-Plane now. Stop OrthoStreamXP to change which packages are shown." : "Stop OrthoStreamXP to change which packages are shown.";
 
     public void OnShown()
     {
@@ -399,15 +402,50 @@ internal sealed class HomeViewModel : ObservableObject, IPage
             : preset == QualityPreset.Dynamic ? $"Near the ground {zooms}; higher up as Sharp, then Balanced. A new area loads in {preset.FirstVisit}."
             : $"{zooms}, about {preset.MetresPerPixel:0.#} m per pixel. A new area loads in {preset.FirstVisit}.";
 
-        if (Mount.Running is { } running)
-            Packages = [.. running.Packages.Select(p => new PackageRow(p.Name, p.Mountpoint))];
+        LoadPackages(settings);
+    }
+
+    /// <summary>
+    /// Every package of the scenery packages folder, mounted or switched off; switchable only while OrthoStreamXP is stopped
+    /// (with a single source package, the running mount's packages and nothing to switch).
+    /// </summary>
+    private void LoadPackages(SettingsDocument settings)
+    {
+        string? xplane = settings.Get("xplane");
+        IReadOnlyList<string> names = SystemCheck.PackagesIn(settings.Get("base-packages"));
+        MountSettings? running = Mount.Running;
+        if (names.Count == 0 && running is not null)
+        {
+            Packages = [.. running.Packages.Select(p => new PackageRow(p.Name, p.Mountpoint, mounted: true, switchTo: null))];
+        }
         else
         {
-            string? xplane = settings.Get("xplane");
-            Packages = [.. SystemCheck.PackagesIn(settings.Get("base-packages"))
-                .Select(name => new PackageRow(name, xplane is null ? "" : Path.Join(xplane, "Custom Scenery", name)))];
+            SkippedPackages skipped = SkippedPackages.Parse(settings.Get(SkippedPackages.Setting));
+            var mounted = running is null ? null : new HashSet<string>(running.Packages.Select(p => p.Name), StringComparer.OrdinalIgnoreCase);
+            Func<PackageRow, bool, bool>? switchTo = Mount.IsStopped ? SwitchPackage : null;
+            Packages = [.. names.Select(name => new PackageRow(name, xplane is null ? "" : Path.Join(xplane, "Custom Scenery", name),
+                mounted?.Contains(name) ?? !skipped.Contains(name), switchTo))];
         }
         Raise(nameof(PackagesCaption));
+    }
+
+    /// <summary>Writes a package switched on or off to skip-packages; it takes effect at the next start.</summary>
+    private bool SwitchPackage(PackageRow row, bool mounted)
+    {
+        if (!Mount.IsStopped) return false;
+        try
+        {
+            SettingsDocument settings = SettingsDocument.Load(SettingsDocument.DefaultPath);
+            settings.Set(SkippedPackages.Setting, SkippedPackages.Parse(settings.Get(SkippedPackages.Setting)).With(row.Name, skipped: !mounted).ToValue());
+            settings.Save();
+            Log.Info($"{row.Name} {(mounted ? "is mounted again" : "is left out of the mount")} from the next start");
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.Warning($"Could not save {SkippedPackages.Setting} for {row.Name}: {ex.Message}");
+            return false;
+        }
     }
 
     // ---------------------------------------------------------------- the last flight's report

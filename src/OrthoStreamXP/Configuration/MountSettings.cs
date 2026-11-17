@@ -230,7 +230,7 @@ internal sealed record MountSettings
     }
 
     /// <summary>
-    /// The packages to mount: source alone, or every package in base-packages (each with its own cache
+    /// The packages to mount: source alone, or every package in base-packages but those in skip-packages (each with its own cache
     /// subfolder), mounted at mountpoint or as X-Plane's Custom Scenery\&lt;name&gt;.
     /// </summary>
     /// <param name="customScenery">X-Plane's Custom Scenery folder when xplane is given.</param>
@@ -265,11 +265,20 @@ internal sealed record MountSettings
         {
             if (!Directory.Exists(basePackages)) throw new SettingsException($"Base packages folder does not exist: {basePackages}");
             plan = [];
+            SkippedPackages skipped = SkippedPackages.Parse(values.String(SkippedPackages.Setting));
+            bool anySkipped = false;
             foreach (string folder in SceneryPacks.FindPackages(basePackages, out notPackages))
             {
                 string name = Path.GetFileName(folder);
-                plan.Add(new PackagePlan(name, folder, Path.Join(cache, name), Path.Join(customScenery, name)));
+                if (skipped.Contains(name)) anySkipped = true;
+                else plan.Add(new PackagePlan(name, folder, Path.Join(cache, name), Path.Join(customScenery, name)));
             }
+            if (plan.Count == 0 && anySkipped)
+                throw new SettingsException($"Every scenery package in {basePackages} is switched off: switch one on under Scenery packages on the Home page");
+            // Overlays only draw roads, forests and buildings on a region's ground: on their own they show nothing to stream onto.
+            if (anySkipped && plan.All(p => SceneryPacks.IsOverlays(p.Name)))
+                throw new SettingsException($"Only overlay packages are switched on ({string.Join(", ", plan.Select(p => p.Name))}): " +
+                                            "switch on at least one region under Scenery packages on the Home page");
             if (plan.Count == 0)
                 throw new SettingsException($"No scenery packages (subfolders with an Earth nav data folder) in {basePackages}");
         }
