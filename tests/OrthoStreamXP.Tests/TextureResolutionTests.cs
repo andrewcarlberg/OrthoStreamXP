@@ -107,9 +107,10 @@ public sealed class TextureResolutionTests : IDisposable
     }
 
     [Fact]
-    public void A_level_no_preset_has_is_at_full_resolution_and_a_wrong_value_is_an_error()
+    public void A_level_no_preset_has_and_a_wrong_resolution_are_errors()
     {
-        Assert.Same(TextureResolution.Full, Parse("level-change = -3", "resolution-balanced = low").Textures.Resolution);
+        foreach (string level in new[] { "-4", "-3", "2" })
+            Assert.Contains("level-change", Assert.Throws<SettingsException>(() => Parse($"level-change = {level}")).Message, StringComparison.Ordinal);
         var error = Assert.Throws<SettingsException>(() => Parse("level-change = 0", "resolution-ultra = high"));
         Assert.Contains("resolution-ultra", error.Message, StringComparison.Ordinal);
     }

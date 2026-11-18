@@ -134,7 +134,7 @@ internal sealed class MountSession : IDisposable
         }
         // The photos' colours with the seasons off: the contrast always, and the exposure.
         ushort[] colours = PhotoColours.TableFor(SeasonState.Summer, s.Exposure);
-        Log.Info($"Photos: sharpness {Sharpening.Strength:P0} as textures are built, contrast {Contrast.Strength:P0} as X-Plane reads them");
+        Log.Info($"Photos: sharpness {Sharpening.AreaStrength:P0} (areas) / {Sharpening.AirportStrength:P0} (airports) as textures are built, contrast {Contrast.Strength:P0} as X-Plane reads them");
         if (Exposure.Percent(s.Exposure) < Exposure.Full) Log.Step($"Exposure: {s.Exposure:0} %; the photos are darkened as X-Plane reads them");
         if (s.TextureStore is not null) Log.Info($"Lazy local DDS store: {s.TextureStore}");
         if (s.LazyTerrainListing)

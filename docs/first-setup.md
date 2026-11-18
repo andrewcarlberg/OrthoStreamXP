@@ -71,14 +71,16 @@ D:\OrthoPackages\
 This is where OrthoStreamXP keeps the pictures it downloads and the textures it builds, so areas you fly again load at once.
 
 - Click **Browse…** or type a full path, such as `D:\OrthoStreamXP\Cache`.
-- Choose a folder on a fast SSD with plenty of free space. The page shows how much space is free on that drive. A new 1° × 1° area, with every texture in it built, takes up to about 8 GB at Balanced, 31 GB at Sharp and 125 GB at Ultra, Extra or Dynamic; most flights build only part of an area. [Settings › Folders](settings.md#folders) shows the figure for the quality you choose.
+- Choose a folder on a fast SSD with plenty of free space. The page shows how much space is free on that drive. A new 1° × 1° area, with every texture in it built, takes up to about 8 GB at Balanced, 31 GB at Sharp and 125 GB at Ultra or Extra (Dynamic takes its base's figure), at Full resolution; most flights build only part of an area. [Settings › Folders](settings.md#folders) shows the figure for the quality you choose.
 - You can change the folder or set a size limit later on the [Cache page](cache.md).
 
 ## 5. Quality
 
 ![Setup step 5: Quality](images/setup-quality.png)
 
-Pick how sharp the ground should be: **Balanced**, **Sharp**, **Ultra**, **Extra** or **Dynamic** (Extra near the ground, less detail high up, where it cannot be seen). Each card shows the texture size, the imagery zoom level, the metres per pixel, roughly how long a new area takes to load, and how much graphics memory the photo textures take. See [Settings › Quality](settings.md#quality) for a comparison.
+Pick how sharp the ground should be: **Balanced**, **Sharp**, **Ultra**, **Extra** or **Dynamic** (its **Base** preset near the ground, Extra unless you choose Ultra or Sharp, and less detail high up, where it cannot be seen). Each card shows the texture size, the imagery zoom level, the metres per pixel, roughly how long a new area takes to load, and how much graphics memory the photo textures take. See [Settings › Quality](settings.md#quality) for a comparison.
+
+Each card also has a **Resolution** box: **Full** (the default) keeps all the detail; **Medium** and **Low** shrink the textures to save graphics memory, from the same imagery (see [Settings › Resolution](settings.md#resolution)). The other cards also say whether they would suit your PC too, or why not; a connection test makes that more exact.
 
 **Not sure?** Click **Test my connection** (it says **Test again** if you have tested before). OrthoStreamXP downloads real pictures for about 30 seconds, then:
 

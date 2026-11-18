@@ -83,6 +83,21 @@ internal sealed class SettingsDocument
         _lines.Add($"{name,-18} = {value}");
     }
 
+    /// <summary>
+    /// Rewrites the comment line just above a setting (the last line that sets it) when that comment starts with
+    /// <paramref name="prefix"/>: one the window wrote, which would otherwise go stale as the value changes. Any other
+    /// line there - a person's own comment, another setting - stays as it is.
+    /// </summary>
+    public void SetComment(string name, string prefix, string comment)
+    {
+        for (int i = _lines.Count - 1; i > 0; i--)
+        {
+            if (Split(_lines[i]) is not { } setting || setting.Name != name) continue;
+            if (_lines[i - 1].TrimStart().StartsWith(prefix, StringComparison.Ordinal)) _lines[i - 1] = comment;
+            return;
+        }
+    }
+
     public void Set(string name, int value) => Set(name, value.ToString(CultureInfo.InvariantCulture));
 
     public void Set(string name, double value) => Set(name, value.ToString("0.###", CultureInfo.InvariantCulture));
@@ -129,7 +144,7 @@ internal sealed class SettingsDocument
             .AppendLine("# --- Pictures ---------------------------------------------------------------------")
             .AppendLine("# bing, esri, or several tried in order for each tile: a tile the first lacks comes from the next")
             .AppendLine("texture-provider   = bing,esri")
-            .AppendLine(CultureInfo.InvariantCulture, $"# quality preset: {preset.Name}; the level also sets the texture size ({preset.Size} px)")
+            .AppendLine(preset.LevelComment)
             .AppendLine(CultureInfo.InvariantCulture, $"level-change       = {preset.Level.ToString(CultureInfo.InvariantCulture)}")
             .AppendLine("# Dynamic quality (the Dynamic preset): less detail high above the ground, where it cannot be seen (on or off)")
             .AppendLine(CultureInfo.InvariantCulture, $"{QualityPreset.DynamicQualityKey}    = {preset.Get(QualityPreset.DynamicQualityKey) ?? "off"}")

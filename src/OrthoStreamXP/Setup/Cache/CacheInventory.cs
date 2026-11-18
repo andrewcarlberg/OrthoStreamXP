@@ -27,7 +27,7 @@ internal sealed record CacheEntry(string Name, string Path, CacheEntryKind Kind,
 internal sealed record SetupName(int Level, int Zl16Size, int Zl18Size)
 {
     /// <summary>The resolution its textures were built at, from their sizes; null for sizes none gives.</summary>
-    public Textures.TextureResolution? Resolution => Textures.TextureResolution.All.FirstOrDefault(r =>
+    public Textures.TextureResolution? Resolution => !Textures.TexturePlan.IsKnownLevel(Level) ? null : Textures.TextureResolution.All.FirstOrDefault(r =>
         new Textures.TexturePlan(Level) { Resolution = r } is var plan && plan.SizeFor(16) == Zl16Size && plan.SizeFor(18) == Zl18Size);
 
     /// <summary>Its preset's name, and a resolution below Full ("Ultra, Medium resolution"); null for a level no preset has.</summary>

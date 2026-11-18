@@ -54,7 +54,8 @@ internal static class CacheAreas
     }
 
     /// <summary>The texture plan of a setup folder such as level-1_2048-2048.</summary>
-    private static TexturePlan PlanOf(string setup) => new(CacheInventory.ParseSetupName(Path.GetFileName(setup))?.Level ?? 0);
+    private static TexturePlan PlanOf(string setup) =>
+        new(CacheInventory.ParseSetupName(Path.GetFileName(setup))?.Level is { } level && TexturePlan.IsKnownLevel(level) ? level : 0);
 
     /// <summary>Deletes the areas' files from every setup folder; returns the bytes freed.</summary>
     public static long Delete(string cache, IReadOnlySet<AreaName> areas, CancellationToken cancel = default)

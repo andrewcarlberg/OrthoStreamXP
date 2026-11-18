@@ -33,7 +33,7 @@ From top to bottom:
 - **Last flight.** A report on your most recent flight, shown while OrthoStreamXP is stopped (see below).
 - **Session figures** (*This session* while it runs, *Last session* after it stops): *textures given to X-Plane*, how many were *ready before X-Plane asked*, how many are *being built now*, and the download speed with the picture tiles downloaded a second.
 - **X-Plane.** *Not connected* while OrthoStreamXP is stopped. Once it runs: *Waiting for X-Plane* until X-Plane sends the aircraft position, then *Connected* with the aircraft's position and speed. *Paused or in the menu* means X-Plane has stopped sending it for now. There is nothing to set up in X-Plane: OrthoStreamXP finds it on the same PC by itself.
-- **Quality.** Your current preset, with a **Change quality** link.
+- **Quality.** Your current preset, with its base for Dynamic and its resolution when it is not Full (for example *Dynamic from Ultra* or *Ultra, Medium resolution*), and a **Change quality** link.
 - **Scenery packages.** The packages shown in X-Plane while OrthoStreamXP runs, each with a switch (see below).
 
 ![The Home page while OrthoStreamXP runs, before X-Plane has started](images/home-running.png)

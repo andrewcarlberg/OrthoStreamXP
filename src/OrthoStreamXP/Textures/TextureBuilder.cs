@@ -43,7 +43,7 @@ internal sealed class TextureBuilder(TileSource tiles, int encoderWorkers, Build
 
         double encodeStarted = total.Elapsed.TotalSeconds;
         var resize = Stopwatch.StartNew();
-        byte[] baseImage = PictureAt(stitched, stitchedSize, size);
+        byte[] baseImage = PictureAt(stitched, stitchedSize, size, name);
         resize.Stop();
         byte[] dds = Dds.Encode(baseImage, size, size, EncoderWorkers, out double mipmapS, out double bc1S);
         double writeS = AtomicFile.Write(destination, dds);
@@ -65,7 +65,7 @@ internal sealed class TextureBuilder(TileSource tiles, int encoderWorkers, Build
         var (image, imageSize, pooled) = await FetchRegionAsync(name, zoom, size, ticket, stats, pool: true).ConfigureAwait(false);
         try
         {
-            return Dds.EncodeChain(PictureAt(image, imageSize, size), layout, firstMip, EncoderWorkers, Buffers);
+            return Dds.EncodeChain(PictureAt(image, imageSize, size, name), layout, firstMip, EncoderWorkers, Buffers);
         }
         finally
         {
@@ -177,12 +177,13 @@ internal sealed class TextureBuilder(TileSource tiles, int encoderWorkers, Build
 
     /// <summary>
     /// A texture's picture at <paramref name="size"/>, what its levels are made from: <see cref="ResizeTo"/>, then
-    /// sharpened (<see cref="Sharpening"/>). An image already that size is sharpened in place.
+    /// sharpened as <paramref name="name"/>'s kind of texture is (<see cref="Sharpening.StrengthFor"/>). An image already
+    /// that size is sharpened in place.
     /// </summary>
-    public byte[] PictureAt(byte[] image, int imageSize, int size)
+    public byte[] PictureAt(byte[] image, int imageSize, int size, TextureName name)
     {
         byte[] picture = ResizeTo(image, imageSize, size);
-        Sharpening.Apply(picture, size, size, EncoderWorkers);
+        Sharpening.Apply(picture, size, size, EncoderWorkers, Sharpening.StrengthFor(name.Zoom));
         return picture;
     }
 

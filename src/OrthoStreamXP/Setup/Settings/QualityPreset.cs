@@ -132,10 +132,13 @@ internal sealed record QualityPreset(string Name, int Level, string Summary, str
     /// <summary>This preset's resolution in the settings: Full when not set, or not one of the names.</summary>
     public TextureResolution ResolutionIn(SettingsDocument settings) => TextureResolution.Parse(settings.Get(ResolutionKey)) ?? TextureResolution.Full;
 
-    /// <summary>The textures the settings build: the level, at the current preset's resolution (Full for a level no preset has).</summary>
+    /// <summary>
+    /// The textures the settings build: the level, at the current preset's resolution. A level no preset has (an older or
+    /// hand-edited file, which the mount refuses) shows as Ultra's, the default.
+    /// </summary>
     public static TexturePlan PlanIn(SettingsDocument settings)
     {
-        int level = settings.GetInt("level-change") ?? 0;
+        int level = ForLevel(settings.GetInt("level-change") ?? 0)?.Level ?? Ultra.Level;
         TextureResolution resolution = Current(level, settings.GetBool(DynamicQualityKey) == true)?.ResolutionIn(settings) ?? TextureResolution.Full;
         return new TexturePlan(level) { Resolution = resolution };
     }
@@ -144,11 +147,19 @@ internal sealed record QualityPreset(string Name, int Level, string Summary, str
     public void ApplyTo(SettingsDocument settings)
     {
         settings.Set("level-change", Level);
+        settings.SetComment("level-change", LevelCommentPrefix, LevelComment);
         // Dynamic quality is Dynamic's alone: any other preset turns it off (an older settings file has no line for it).
         if (!Settings.ContainsKey(DynamicQualityKey)) settings.Set(DynamicQualityKey, "off");
         foreach (var (name, value) in Settings) settings.Set(name, value);
         if (DynamicBase is { } near) settings.Set(DynamicBaseKey, near.Name.ToLowerInvariant());
     }
+
+    /// <summary>The comment the window keeps above level-change, naming the preset: "# quality preset: Ultra; ...".</summary>
+    public string LevelComment =>
+        FormattableString.Invariant($"{LevelCommentPrefix}{Title}; the level also sets the texture size ({Size} px)");
+
+    /// <summary>How <see cref="LevelComment"/> starts: only a comment that starts so is the window's to rewrite.</summary>
+    public const string LevelCommentPrefix = "# quality preset: ";
 
     /// <summary>The setting that makes Extra's, Ultra's or Sharp's level <see cref="Dynamic"/>.</summary>
     public const string DynamicQualityKey = "dynamic-quality";

@@ -88,7 +88,9 @@ OrthoStreamXP provides five presets:
 - **Sharp** — the recommended starting point for most systems.
 - **Ultra** — for systems with more graphics memory available.
 - **Extra** — the highest preset, intended for systems with greater resources.
-- **Dynamic** — Extra near the ground, Sharp from 5,000 ft and Balanced from 25,000 ft above it. High up, X-Plane still asks for full detail it cannot show, so Dynamic saves about half the downloads in a climb and cruise. On a descent it returns to full detail early, before the ground comes close.
+- **Dynamic** — Extra near the ground, Sharp from 5,000 ft and Balanced from 25,000 ft above it. High up, X-Plane still asks for full detail it cannot show, so Dynamic saves about half the downloads in a climb and cruise. On a descent it returns to full detail early, before the ground comes close. Its **Base** can be Ultra or Sharp instead of Extra, for a slower connection.
+
+Each preset also has a **Resolution**: **Full** keeps all the detail of the imagery, **Medium** halves the textures away from airports and **Low** halves them all, to fit a smaller graphics card from the same imagery.
 
 You can change presets in Settings. OrthoStreamXP also reports graphics memory usage from your flights and warns when the measured scenery requirements exceed your card's available memory.
 

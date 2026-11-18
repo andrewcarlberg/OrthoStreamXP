@@ -34,6 +34,7 @@ Areas can be deleted only while OrthoStreamXP is stopped, because X-Plane may be
 Each quality preset keeps its textures in its own folder, so switching presets never throws textures away. This list shows how much each one takes:
 
 - **One row per preset you have flown with** (for example *Extra*), with its texture sizes and number of files. The preset you use now is marked **In use**. Delete a preset you no longer use to free its space.
+- A preset used at a lower [resolution](settings.md#resolution) keeps those textures in a folder of their own, listed as, for example, *Ultra, Medium resolution*.
 - When an update changes a preset's texture sizes (as 1.5.0 did), the textures built before it stay in their old folder. They are listed as a second row for the same preset, with the old sizes, and OrthoStreamXP no longer uses them, so you can delete that row.
 - **Low-zoom base:** coarse pictures that distant scenery is drawn from. All presets share it. If you delete it, distant scenery is a plain colour at the start of a flight until these pictures are downloaded again.
 - **Logs:** the log files of earlier runs.

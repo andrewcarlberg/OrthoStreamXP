@@ -23,9 +23,9 @@ Choose how sharp the ground is. Each preset comes with settings tested for it an
 | **Sharp** | 4096 px, 2048 near airports | 16, 17 near airports | ~1.7 m per pixel | Everyday flying, approaches included |
 | **Ultra** | 8192 px, 4096 near airports | 17, 18 near airports | ~0.8 m per pixel | Low flight and GA, with plenty of graphics memory |
 | **Extra** | 8192 px | 17, 19 near airports | ~0.8 m per pixel | Low and slow flight and screenshots, on a fast connection |
-| **Dynamic** | Extra's near the ground, less higher up | as Extra below 5,000 ft | follows the height | Climbs, cruise and approaches in one flight, on a fast connection |
+| **Dynamic** | its base's near the ground (Extra, Ultra or Sharp), less higher up | as its base below 5,000 ft | follows the height | Climbs, cruise and approaches in one flight |
 
-Each texture keeps all the detail of the imagery it is made from: nothing is shrunk. The resolution is for the wide areas away from airports, at mid latitudes; near airports the textures cover a quarter of the width, so the same size is four times as sharp there. Each new texture is also sharpened a little as it is built, so roofs, field edges and treetops look crisper. This is always on and has no setting.
+At **Full** resolution (the default), each texture keeps all the detail of the imagery it is made from: nothing is shrunk. The sizes above are Full's; see [Resolution](#resolution) for less. The resolution is for the wide areas away from airports, at mid latitudes; near airports the textures cover a quarter of the width, so the same size is four times as sharp there. Each new texture is also sharpened a little as it is built, so roofs, field edges and treetops look crisper. This is always on and has no setting.
 
 **Extra** is Ultra with the finest imagery (zoom 19) near airports, as 8192 px textures, twice as sharp as Ultra's there and often without its clouds and other artefacts. Elsewhere it is the same as Ultra. Near airports it downloads four times as much as Ultra, and a new area takes a little longer to load: about 4 minutes, then sharp next to the aircraft.
 
@@ -33,20 +33,47 @@ Each texture keeps all the detail of the imagery it is made from: nothing is shr
 
 **Dynamic** makes the detail follow your height above the ground:
 
-- **Below 5,000 ft** it is Extra.
+- **Below 5,000 ft** it is its **Base** preset: Extra unless you choose another.
 - **From 5,000 ft** the photos are downloaded at Sharp's detail.
 - **From 25,000 ft** they are downloaded at Balanced's detail.
 
 High up, X-Plane still asks for the photos in full detail, though from there the detail cannot be seen. Dynamic downloads about half as much in a climb and cruise, which suits airliners and other high flying.
 
+The **Base** box on Dynamic's card sets the preset it is near the ground:
+
+| Base | Near the ground | Higher up | Best for |
+|---|---|---|---|
+| **Extra** (the default) | Extra | Sharp from 5,000 ft, Balanced from 25,000 ft | a fast connection |
+| **Ultra** | Ultra: zoom 18 near airports instead of 19, a quarter of Extra's downloads there | Sharp from 5,000 ft, Balanced from 25,000 ft | a good connection |
+| **Sharp** | Sharp, through the climb too | Balanced from 25,000 ft | long flights at airliner heights, on an everyday connection |
+
+The card's text follows the base you choose, and Home names it, for example *Dynamic from Ultra*. Dynamic uses its base's textures in the cache and its base's tuning.
+
 On a descent, Dynamic looks four minutes ahead and goes back to full detail early, so the ground is sharp again before you come close to it. X-Plane does not load a photo again just because you came lower: one it loaded with less detail high up stays that way while X-Plane keeps it. That is why the switch back comes early.
 
-Dynamic shares Extra's textures in the cache, so you can switch between the two without downloading anything again, and photos already in the cache are shown as they are at any height. It needs X-Plane to send the aircraft's position, which it does on the same PC by itself. The heights can be changed in the settings file (**Show the file**): `dynamic-sharp-above` and `dynamic-balanced-above`, in feet.
+Dynamic shares its base's textures in the cache (Extra's by default), so you can switch between the two without downloading anything again, and photos already in the cache are shown as they are at any height. It needs X-Plane to send the aircraft's position, which it does on the same PC by itself. The heights can be changed in the settings file (**Show the file**): `dynamic-sharp-above` and `dynamic-balanced-above`, in feet.
+
+### Resolution
+
+The **Resolution** box at the top right of each card shrinks that preset's textures, to save graphics memory:
+
+- **Full** (the default): the textures keep all the detail of their imagery.
+- **Medium**: halves the textures of the wide areas and keeps the airports' textures sharp.
+- **Low**: halves them all, a quarter of Full's graphics memory.
+
+The imagery is the same at every resolution: it is downloaded at the same zoom, so a lower resolution does not download less. It shows the same picture with less detail, and takes less graphics memory, RAM and disk. Below a resolution other than Full, the card gives the sizes it makes, for example *At Medium resolution: 4096 px textures in most areas, 4096 px near airports, from the same imagery.*
+
+Each preset keeps its own resolution, so you can have Ultra at Medium and Extra at Full; the one of the preset you choose is used. Textures of each resolution are kept in their own cache folder: [Cache › By quality](cache.md#by-quality) lists them as, for example, *Ultra, Medium resolution*. Like every setting, a change applies from the next start.
+
+Try a lower resolution when a preset's card warns that its textures would not fit your graphics card, rather than a coarser preset: Medium keeps the airports at full detail.
+
+### The cards
 
 Each card shows the imagery zoom, the metres per pixel, roughly how long a new area takes to load, and how much graphics memory the photo textures take. Until you have flown, that memory figure comes from a test flight; after your first long flight, it is measured on your PC.
 
-- The **Recommended** badge marks the preset that suits your connection and graphics card, with the reason below it.
-- If a preset's photo textures plus X-Plane's own needs (about 5 GB) would be more than your graphics card has, its card shows a warning. X-Plane may then stutter or lower its texture detail; a smaller preset is safer.
+- The **Recommended** badge marks the preset that suits your connection and graphics card, with the reason below it. When it fits only at a lower resolution, the badge says so, for example **Recommended at Medium**.
+- The other cards say in a line under the title whether they would suit your PC too: *Also suits your PC.* in green (or *Also suits your PC at Medium resolution*, when only a lower resolution fits your graphics card), or in amber why not, such as *Needs about 100 Mbit/s of downloads* or *Too large for your 4 GB graphics card, even at Low resolution*.
+- If a preset's photo textures plus X-Plane's own needs (about 5 GB) would be more than your graphics card has, its card shows a warning. X-Plane may then stutter or lower its texture detail; a lower resolution or a smaller preset is safer.
 
 ### Ground detail
 

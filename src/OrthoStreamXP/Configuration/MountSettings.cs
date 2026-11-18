@@ -83,7 +83,8 @@ internal sealed record MountSettings
     {
         string cache = Path.TrimEndingDirectorySeparator(Path.GetFullPath(values.Required("cache")));
         int levelChange = values.Int("level-change", 0);
-        if (levelChange is < -4 or > 2) throw new SettingsException("level-change must be between -4 and 2");
+        if (Setup.QualityPreset.ForLevel(levelChange) is null)
+            throw new SettingsException("level-change must be one of the quality presets: -2 (Balanced), -1 (Sharp), 0 (Ultra) or 1 (Extra)");
         Scenery.DynamicOptions? dynamic = ParseDynamic(values);
         // The texture size follows the level (Balanced 2048/1024 ... Extra 8192), shrunk by the preset's resolution; an
         // older settings file's texture-quality is ignored.

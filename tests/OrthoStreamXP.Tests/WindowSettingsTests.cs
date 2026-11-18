@@ -104,6 +104,32 @@ public sealed class WindowSettingsTests : IDisposable
         Assert.Equal(8, settings.GetInt("dds-build-workers"));
     }
 
+    [Fact]
+    public void Choosing_a_preset_rewrites_the_preset_comment_of_a_new_settings_file()
+    {
+        SettingsDocument settings = SettingsDocument.CreateNew(_tree.PathOf("orthostreamxp.ini"), @"C:\X-Plane 12", @"C:\Packages", @"D:\cache", QualityPreset.Sharp);
+        int line = settings.Lines.ToList().FindIndex(l => l.StartsWith("level-change", StringComparison.Ordinal));
+        Assert.Equal("# quality preset: Sharp; the level also sets the texture size (4096 px)", settings.Lines[line - 1]);
+
+        QualityPreset.Ultra.ApplyTo(settings);
+        Assert.Equal("# quality preset: Ultra; the level also sets the texture size (8192 px)", settings.Lines[line - 1]);
+
+        QualityPreset.DynamicSharp.ApplyTo(settings);
+        Assert.Equal("# quality preset: Dynamic from Sharp; the level also sets the texture size (4096 px)", settings.Lines[line - 1]);
+        Assert.Single(settings.Lines, l => l.StartsWith(QualityPreset.LevelCommentPrefix, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Choosing_a_preset_keeps_a_comment_of_your_own_above_the_level()
+    {
+        var settings = SettingsDocument.FromText("x.ini", "# my own note\nlevel-change = -2\n");
+
+        QualityPreset.Ultra.ApplyTo(settings);
+
+        Assert.Equal("# my own note", settings.Lines[0]);
+        Assert.Equal(0, settings.GetInt("level-change"));
+    }
+
     [Theory]
     [InlineData("Ultra_4096-4096", 0, 4096, 4096)]
     [InlineData("Balanced_1024-1024", -2, 1024, 1024)]

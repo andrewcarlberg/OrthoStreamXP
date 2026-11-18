@@ -469,7 +469,7 @@ internal sealed class TextureStreamer : IDisposable
             if (k == 0 && _roots.CachedFile(t.Path) is { } file)
                 chain = ReadAfterHeader(file);
             else if (t.RealFromBase && _builder.TryStoredRegion(t.Name, t.ZoomFor(k)) is { } region)
-                chain = Dds.EncodeChain(_builder.PictureAt(region.Rgb, region.Size, t.Layout.SizeOf(k)), t.Layout, k, 1);
+                chain = Dds.EncodeChain(_builder.PictureAt(region.Rgb, region.Size, t.Layout.SizeOf(k), t.Name), t.Layout, k, 1);
             else if (k > 0 && k < t.Layout.Levels && !t.RealFromBase)
                 chain = File.ReadAllBytes(ChainPath(t, k));
         }
