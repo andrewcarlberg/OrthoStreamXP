@@ -26,6 +26,7 @@ Traditional photo scenery often requires downloading and building large areas be
 - **Less disk space wasted** — keep the areas you fly and automatically remove older scenery when your cache reaches its limit.
 - **Better scenery ahead** — OrthoStreamXP follows your aircraft and downloads upcoming areas before you reach them.
 - **Simple quality settings** — choose Balanced, Sharp, Ultra, or Extra without learning dozens of technical parameters.
+- **Sharp, crisp textures** — up to 8192 px, keeping all the detail of the imagery, sharpened a little and given a touch of contrast, as aerial photos are often hazy.
 - **Settings that adapt to your setup** — test your connection before the first flight to get a recommended preset, and after a sufficiently long flight, get recommendations based on how the scenery performed on your PC and internet connection. You decide whether to apply them.
 - **Seasonal colours** — optionally give summer imagery a more autumnal or winter appearance, based on the simulated date and location, with grass and fields optionally coloured by NASA's satellite record of how green each place really was.
 - **Clean photos up close** — X-Plane's procedural grass and dirt speckles are kept off the aerial photos by default, or faded to the strength you like, without changing your scenery packages.
@@ -108,7 +109,7 @@ When the cache exceeds its limit, OrthoStreamXP removes older areas automaticall
 
 Most aerial imagery was captured during warmer months, so a winter flight can otherwise look unexpectedly green.
 
-Enable **Seasons** to adjust the appearance of vegetation and fields according to X-Plane's simulated date and the location you're flying over.
+Turn on **Colour the scenery for the season** (Settings › Colours) to adjust the appearance of vegetation and fields according to X-Plane's simulated date and the location you're flying over.
 
 - **Spring:** fresh greens return.
 - **Summer:** the imagery as it was photographed.

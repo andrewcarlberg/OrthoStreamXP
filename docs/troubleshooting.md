@@ -28,7 +28,7 @@ When something goes wrong, Home shows a notice that says what happened, usually 
 
 ![The Log page](images/log.png)
 
-The Log page lists the main steps and any problems of this session. Type in **Search the log** to filter the list. **Open log folder** opens the full, detailed logs in `%LOCALAPPDATA%\OrthoStreamXP\logs`.
+The Log page lists the main steps and any problems of this session; it stays empty until you start OrthoStreamXP on the Home page. Type in **Search the log** to filter the list. **Open log folder** opens the full, detailed logs in `%LOCALAPPDATA%\OrthoStreamXP\logs`.
 
 ## The About page
 

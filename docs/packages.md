@@ -4,7 +4,7 @@
 
 OrthoStreamXP streams photos onto scenery packages: the ground's shape (the mesh) for each area. The quickest way to get them is to download the mesh of a whole region, on the **Packages** page or in the **Scenery packages** step of the setup. You can also use packages of your own; keep them in a folder of their own (see [One folder per source](#one-folder-per-source)).
 
-![The Packages page, with Australia and the Pacific installed](images/packages.png)
+![The Packages page: five regions installed, Asia's download stopped part-way](images/packages.png)
 
 The meshes are downloaded from a public collection on [GitHub](https://github.com/kubilus1/autoortho-scenery). Six regions are offered:
 
@@ -43,7 +43,7 @@ Why:
 
 OrthoStreamXP uses one scenery packages folder at a time, so you fly with one source at a time.
 
-The **Packages** page installs into the folder chosen at that moment, shown at the top of the page. Before you download a region, check that it is your folder for downloaded regions, not your own packages' folder. Don't have one yet? Choose a new, empty folder in [Settings › Folders](settings.md#folders), then install. Home warns that no scenery packages were found until the first region is in it.
+The **Packages** page installs into the folder chosen at that moment, shown at the top of the page; **Open the folder** opens it in Explorer, and **Refresh** reads the folder and the list of releases again. Before you download a region, check that it is your folder for downloaded regions, not your own packages' folder. Don't have one yet? Choose a new, empty folder in [Settings › Folders](settings.md#folders), then install. Home warns that no scenery packages were found until the first region is in it.
 
 ## Roads, forests and buildings
 
@@ -51,7 +51,7 @@ A square of a downloaded mesh no longer shows X-Plane's own roads, forests and b
 
 ## Downloading, stopping and resuming
 
-![A region downloading](images/packages-downloading.png)
+![Asia downloading, with its progress and speed](images/packages-downloading.png)
 
 - **Install** starts the download. While one region downloads, the others wait: one install runs at a time. The progress and speed show under the region.
 - **Stop** stops it. What was downloaded is kept: **Resume** continues from there, even after OrthoStreamXP was closed.

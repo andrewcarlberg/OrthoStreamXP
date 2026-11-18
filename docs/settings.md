@@ -25,7 +25,7 @@ Choose how sharp the ground is. Each preset comes with settings tested for it an
 | **Extra** | 8192 px | 17, 19 near airports | ~0.8 m per pixel | Low and slow flight and screenshots, on a fast connection |
 | **Dynamic** | Extra's near the ground, less higher up | as Extra below 5,000 ft | follows the height | Climbs, cruise and approaches in one flight, on a fast connection |
 
-Each texture keeps all the detail of the imagery it is made from: nothing is shrunk. The resolution is for the wide areas away from airports, at mid latitudes; near airports the textures cover a quarter of the width, so the same size is four times as sharp there.
+Each texture keeps all the detail of the imagery it is made from: nothing is shrunk. The resolution is for the wide areas away from airports, at mid latitudes; near airports the textures cover a quarter of the width, so the same size is four times as sharp there. Each new texture is also sharpened a little as it is built, so roofs, field edges and treetops look crisper. This is always on and has no setting.
 
 **Extra** is Ultra with the finest imagery (zoom 19) near airports, as 8192 px textures, twice as sharp as Ultra's there and often without its clouds and other artefacts. Elsewhere it is the same as Ultra. Near airports it downloads four times as much as Ultra, and a new area takes a little longer to load: about 4 minutes, then sharp next to the aircraft.
 
@@ -88,6 +88,10 @@ Your scenery packages are not changed: OrthoStreamXP adjusts the terrain files a
 
 The top of the tab shows a photo from your cache twice: **Before** (as downloaded) and **After** (as X-Plane will get it with the settings below). It updates as you change them, and **Another photo** picks a different one. The preview needs a cache folder with at least one flown area in it. It works while the scenery is streaming too. When you scroll down to the settings, the preview stays at the top of the tab, so you can see each change as you make it.
 
+The line under the pictures says where the photo is and which changes the **After** picture shows, for example *Exposure 80 % · Contrast 60 % (always on)*.
+
+The **After** picture always has a little more contrast than **Before**, even with every setting below off: OrthoStreamXP gives all photos a touch of contrast as X-Plane reads them, because aerial photos are often hazy. That contrast has no setting.
+
 ### Seasons
 
 Most aerial photos are taken in summer.
@@ -98,10 +102,10 @@ Most aerial photos are taken in summer.
   - **Winter:** deciduous trees look bare and fields turn brown.
   
   Conifers, roofs, roads and water keep their colours, and snow is left to X-Plane's weather.
-- **Season:** *Automatic* follows X-Plane's date and the place; a new date takes effect from the next flight. You can also force one season everywhere: *Early spring*, *Spring*, *Summer* (the pictures as they are), *Early autumn*, *Autumn*, *Late autumn* or *Winter, without snow*.
-- **Season: Satellite** also follows X-Plane's date. Trees keep the calendar's colours and times, but **grass and fields** look as green as NASA's satellites saw the place in that part of the last year, compared with its greenest month. So they stay green through a mild Atlantic or Mediterranean winter, dry out in a dry summer, and turn straw-coloured in the tropics' dry season, where the calendar shows nothing or the opposite. A snowy or ploughed winter rests fully, as with the calendar.
+- **Season:** *Automatic: X-Plane's date and the place* follows the date of your flight; a new date takes effect from the next flight. You can also force one season everywhere: *Early spring*, *Spring*, *Summer (the pictures as they are)*, *Early autumn*, *Autumn*, *Late autumn* or *Winter, without snow*.
+- **Season: Satellite: grass and fields as they really were** also follows X-Plane's date. Trees keep the calendar's colours and times, but **grass and fields** look as green as NASA's satellites saw the place in that part of the last year, compared with its greenest month. So they stay green through a mild Atlantic or Mediterranean winter, dry out in a dry summer, and turn straw-coloured in the tropics' dry season, where the calendar shows nothing or the opposite. A snowy or ploughed winter rests fully, as with the calendar.
 
-  The satellites see the country around a place at about 4 km, so a whole area changes together, not each field on its own. Towns, rock and sand, which are never very green, keep the calendar. OrthoStreamXP downloads about 2 MB once a year for each area of about 500 km, the first time you fly there, and keeps it with the low-zoom base. Where it has no satellite data (offline, before the first download), it uses the calendar. The colour preview uses only what is already downloaded.
+  The satellites see the country around a place at about 4 km, so a whole area changes together, not each field on its own. Towns, rock and sand, which are never very green, keep the calendar. OrthoStreamXP downloads about 2 MB once a year for each area of about 500 km, the first time you fly there, and keeps it with the low-zoom base. Where it has no satellite data (offline, before the first download), it uses the calendar. The colour preview uses only what is already downloaded: for a place you have not flown with Satellite yet, the line under the pictures says *No satellite record of this place yet* and shows the calendar's season.
 - **Strength:** how far the colours move towards the season. 100 % is the full change.
 
 ### Exposure
