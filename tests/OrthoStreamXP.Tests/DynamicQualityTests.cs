@@ -139,7 +139,8 @@ public sealed class DynamicQualityTests : IDisposable
         Assert.Equal("off", settings.Get("dynamic-quality"));
         Assert.Equal(QualityPreset.Extra, QualityPreset.Current(settings.GetInt("level-change"), false));
 
-        Assert.Equal(QualityPreset.Sharp, QualityPreset.Current(-1, true)); // dynamic-quality set by hand at another level
+        Assert.Equal(QualityPreset.DynamicSharp, QualityPreset.Current(-1, true)); // Dynamic from Sharp
+        Assert.Equal(QualityPreset.Balanced, QualityPreset.Current(-2, true)); // dynamic-quality set by hand at a level Dynamic cannot have
         Assert.Equal(QualityPreset.Extra, QualityPreset.ForLevel(1)); // the cache, tuning and texture size stay Extra's
         Assert.Equal(160, settings.GetInt("download-workers"));
     }
@@ -165,5 +166,103 @@ public sealed class DynamicQualityTests : IDisposable
         TunedSettings.ChoosePreset(settings, QualityPreset.Dynamic, TunedStore.Load(path));
 
         Assert.Equal(("7.5", true), (settings.Get("max-wait"), settings.GetBool("dynamic-quality") == true));
+    }
+
+    // ---------------------------------------------------------------- the base
+
+    [Theory]
+    [InlineData("Extra", 1, new[] { "Sharp", "Balanced" })]
+    [InlineData("Ultra", 0, new[] { "Sharp", "Balanced" })]
+    [InlineData("Sharp", -1, new[] { "Balanced" })] // Sharp's own step is no saving at Sharp
+    public void Dynamic_from_each_base_is_that_presets_level_and_values_with_dynamic_quality_on(string baseName, int level, string[] steps)
+    {
+        QualityPreset near = QualityPreset.All.Single(p => p.Name == baseName);
+        QualityPreset dynamic = QualityPreset.DynamicOn(near)!;
+        var settings = SettingsDocument.FromText("x.ini", "level-change = -2\n");
+
+        dynamic.ApplyTo(settings);
+
+        Assert.Equal((level, true, baseName.ToLowerInvariant()),
+            (settings.GetInt("level-change"), settings.GetBool("dynamic-quality") == true, settings.Get(QualityPreset.DynamicBaseKey)));
+        Assert.Equal(near.Get("dds-build-workers"), settings.Get("dds-build-workers"));
+        Assert.Same(dynamic, QualityPreset.Current(level, true));
+        Assert.Equal(steps, dynamic.DynamicSteps.Select(t => t.Name));
+        Assert.Equal(("Dynamic", $"Dynamic from {baseName}"), (dynamic.Name, dynamic.Title));
+        Assert.Equal(near.PlanAt(TextureResolution.Full), dynamic.PlanAt(TextureResolution.Full)); // its cache and textures
+        Assert.Empty(TunedSettings.Changed(settings, dynamic)); // nothing shown as tuned: its values are its own
+    }
+
+    [Fact]
+    public void Only_Extra_Ultra_and_Sharp_can_be_Dynamics_base()
+    {
+        Assert.Equal([QualityPreset.Extra, QualityPreset.Ultra, QualityPreset.Sharp], QualityPreset.DynamicChoices.Select(p => p.DynamicBase));
+        Assert.Null(QualityPreset.DynamicOn(QualityPreset.Balanced));
+        Assert.Same(QualityPreset.Dynamic, QualityPreset.DynamicOn(QualityPreset.Extra));
+        Assert.All(QualityPreset.All, p => Assert.False(p.IsDynamic));
+    }
+
+    [Fact]
+    public void The_window_keeps_Dynamics_base_while_another_preset_is_chosen()
+    {
+        var settings = SettingsDocument.FromText("x.ini", "");
+        Assert.Same(QualityPreset.Dynamic, QualityPreset.DynamicIn(settings)); // nothing kept: Extra
+
+        QualityPreset.DynamicUltra.ApplyTo(settings);
+        QualityPreset.Balanced.ApplyTo(settings);
+        Assert.Equal(("off", "ultra"), (settings.Get("dynamic-quality"), settings.Get(QualityPreset.DynamicBaseKey)));
+        Assert.Same(QualityPreset.DynamicUltra, QualityPreset.DynamicIn(settings));
+
+        // At Dynamic, the level says which: an edited file's level wins over the base kept.
+        settings.Set("dynamic-quality", "on");
+        settings.Set("level-change", -1);
+        Assert.Same(QualityPreset.DynamicSharp, QualityPreset.DynamicIn(settings));
+
+        settings.Set("dynamic-quality", "off");
+        settings.Set(QualityPreset.DynamicBaseKey, "balanced"); // not a base Dynamic can have
+        Assert.Same(QualityPreset.Dynamic, QualityPreset.DynamicIn(settings));
+    }
+
+    [Fact]
+    public void A_mount_at_Dynamic_from_Ultra_streams_Ultras_textures_at_Dynamics_resolution()
+    {
+        MountSettings s = Parse("level-change = 0", "dynamic-quality = on", "dynamic-base = ultra", "resolution-dynamic = medium", "resolution-ultra = low");
+
+        Assert.Equal((0, TextureResolution.Medium), (s.Textures.LevelChange, s.Textures.Resolution));
+        Assert.Equal(["Sharp", "Balanced"], s.Dynamic!.TiersBelow(s.Textures).Select(t => t.Name));
+    }
+
+    [Fact]
+    public void Dynamic_from_Ultra_shares_what_was_tuned_for_Ultra()
+    {
+        string path = _tree.PathOf("orthostreamxp.ini");
+        TunedStore store = TunedStore.Load(path);
+        store.Set(QualityPreset.Ultra.Level, "max-wait", "6");
+        store.Set(QualityPreset.Extra.Level, "max-wait", "9");
+        store.Save();
+        var settings = SettingsDocument.FromText(path, "");
+
+        TunedSettings.ChoosePreset(settings, QualityPreset.DynamicUltra, TunedStore.Load(path));
+
+        Assert.Equal(("6", 0), (settings.Get("max-wait"), settings.GetInt("level-change")));
+    }
+
+    [Fact]
+    public void Each_Dynamic_needs_its_bases_downloads()
+    {
+        IReadOnlyList<PresetFit> fits = PresetAdvisor.Assess(null, GraphicsMemory.TestFlight, [], new ConnectionResult(DateTime.UtcNow, "bing", [new ConnectionRound(64, 1024, 0, 16_900_000, 0.7, 0.14, 60)], 64), QualityPreset.Offered);
+
+        Assert.False(fits.Single(f => f.Preset == QualityPreset.Dynamic).Suits); // Extra's 100 Mbit/s
+        Assert.True(fits.Single(f => f.Preset == QualityPreset.DynamicUltra).Suits); // Ultra's 50
+        Assert.True(fits.Single(f => f.Preset == QualityPreset.DynamicSharp).Suits);
+    }
+
+    [Fact]
+    public void A_new_settings_file_keeps_Dynamics_base_and_reads_as_settings()
+    {
+        SettingsDocument settings = SettingsDocument.CreateNew(_tree.PathOf("orthostreamxp.ini"), @"C:\X-Plane 12", @"C:\Packages", @"D:\cache", QualityPreset.DynamicSharp);
+
+        Assert.Equal(("sharp", -1, true), (settings.Get(QualityPreset.DynamicBaseKey), settings.GetInt("level-change"), settings.GetBool("dynamic-quality") == true));
+        Assert.Same(QualityPreset.DynamicSharp, QualityPreset.DynamicIn(settings));
+        settings.Parse();
     }
 }

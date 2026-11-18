@@ -9,10 +9,11 @@ namespace OrthoStreamXP.Textures;
 /// wide ZL16 areas are not left much softer than the airports; above level 0 they use 16 + level (Extra +1: zoom 17,
 /// as Ultra, while the airports get zoom 19). Other zooms use zoom + level.
 /// <para>
-/// The size is the detail the tiles hold, never shrunk: 4096 px at the file's own zoom (16 x 16 tiles), twice as much
-/// per level finer, half per level coarser. ZL16 textures: Balanced 2048, Sharp 4096, Ultra and Extra 8192; ZL18
-/// textures: Balanced 1024, Sharp 2048, Ultra 4096, Extra 8192. Only a level beyond Extra's, whose detail would pass
-/// <see cref="TextureSizing.MaxSize"/>, is shrunk to it.
+/// The size is the detail the tiles hold at <see cref="TextureResolution.Full"/>: 4096 px at the file's own zoom (16 x
+/// 16 tiles), twice as much per level finer, half per level coarser. ZL16 textures: Balanced 2048, Sharp 4096, Ultra
+/// and Extra 8192; ZL18 textures: Balanced 1024, Sharp 2048, Ultra 4096, Extra 8192. A level beyond Extra's, whose
+/// detail would pass <see cref="TextureSizing.MaxSize"/>, is shrunk to it. A lower <see cref="Resolution"/> halves the
+/// textures from the same tiles (Ultra at Medium: ZL16 4096 px from zoom 17, ZL18 still 4096 px).
 /// </para>
 /// </summary>
 /// <param name="Limit">A size limit instead of the level's own (tests of the streaming engine at full detail).</param>
@@ -20,6 +21,9 @@ internal sealed partial record TexturePlan(int LevelChange, int? Limit = null)
 {
     /// <summary>Levels finer than the file zoom; BuildAsync accepts up to +3.</summary>
     public const int MaxLevel = 3;
+
+    /// <summary>How much the textures are shrunk from the detail their tiles hold (the preset's resolution setting).</summary>
+    public TextureResolution Resolution { get; init; } = TextureResolution.Full;
 
     /// <summary>The largest texture built: <see cref="TextureSizing.MaxSize"/>, or the explicit limit (tests).</summary>
     public int SizeLimit => Limit ?? TextureSizing.MaxSize;
@@ -30,8 +34,8 @@ internal sealed partial record TexturePlan(int LevelChange, int? Limit = null)
     /// <summary>The zoom its tiles are downloaded at.</summary>
     public int FetchZoom(int fileZoom) => fileZoom + LevelFor(fileZoom);
 
-    /// <summary>Its size in pixels: the downloaded detail, capped by the size limit, never enlarged.</summary>
-    public int SizeFor(int fileZoom) => Math.Min(TextureSizing.DownloadedDetail(LevelFor(fileZoom)), SizeLimit);
+    /// <summary>Its size in pixels: the downloaded detail shrunk by the resolution, capped by the size limit, never enlarged.</summary>
+    public int SizeFor(int fileZoom) => Math.Min(Resolution.SizeOf(TextureSizing.DownloadedDetail(LevelFor(fileZoom)), fileZoom), SizeLimit);
 
     /// <summary>
     /// A texture's name in the cache: the row and column of its top-left tile at the zoom it is downloaded at, and that

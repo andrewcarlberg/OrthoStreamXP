@@ -24,7 +24,7 @@ internal sealed class SettingsViewModel : ObservableObject, IPage
     public SettingsViewModel(MainViewModel main)
     {
         _main = main;
-        Presets = [.. QualityPreset.Choices.Select(p => new PresetOption(p, ChoosePreset))];
+        Presets = [.. QualityPreset.Choices.Select(p => new PresetOption(p, ChoosePreset, SaveResolution, ChooseDynamicBase))];
         Providers =
         [
             new Choice("Bing, then Esri where Bing has no picture (recommended)", "bing,esri"),
@@ -148,7 +148,7 @@ internal sealed class SettingsViewModel : ObservableObject, IPage
     /// <summary>Reset would change something: a tuned value, or a setting edited in the file.</summary>
     public bool CanReset => CurrentPreset is { } preset && TunedSettings.DiffersFromDefaults(_document, preset);
 
-    public string ResetQuestion => $"Put every setting back to the {CurrentPreset?.Name} defaults and forget what was tuned for it? The folders, the picture source and Downloads at once stay as they are.";
+    public string ResetQuestion => $"Put every setting back to the {CurrentPreset?.Name} defaults and forget what was tuned for it? The folders, the picture source, the resolutions and Downloads at once stay as they are.";
 
     public bool ConfirmingReset
     {
@@ -394,7 +394,7 @@ internal sealed class SettingsViewModel : ObservableObject, IPage
     {
         get
         {
-            int size = new TexturePlan(_document.GetInt("level-change") ?? 0).SizeFor(16);
+            int size = QualityPreset.PlanIn(_document).SizeFor(16);
             return $"Each new area takes up to about {CacheInventory.FormatBytes(3000L * size * size * 2 / 3)} at this texture size.";
         }
     }
@@ -474,7 +474,13 @@ internal sealed class SettingsViewModel : ObservableObject, IPage
         _loading = false;
         int level = _document.GetInt("level-change") ?? 0;
         QualityPreset? current = CurrentPreset;
-        foreach (PresetOption option in Presets) option.Show(option.Preset == current);
+        QualityPreset dynamic = QualityPreset.DynamicIn(_document);
+        foreach (PresetOption option in Presets)
+        {
+            option.ShowBase(dynamic);
+            option.Show(option.Preset == current);
+            option.ShowResolution(option.Preset.ResolutionIn(_document));
+        }
         CustomLevelNote = QualityPreset.ForLevel(level) is null
             ? $"Your settings file uses level-change {level}, which is not one of these. Choosing one replaces it."
             : null;
@@ -500,6 +506,24 @@ internal sealed class SettingsViewModel : ObservableObject, IPage
         foreach (PresetOption option in Presets) option.Show(option.Preset == preset);
         CustomLevelNote = null;
         Reload();
+    }
+
+    /// <summary>
+    /// Dynamic's base changed on its card: chosen at once while the settings are at Dynamic (its level and that
+    /// preset's values, with what was tuned for it), otherwise kept for when Dynamic is chosen.
+    /// </summary>
+    private void ChooseDynamicBase(QualityPreset dynamic)
+    {
+        if (CurrentPreset is { IsDynamic: true }) ChoosePreset(dynamic);
+        else Save(QualityPreset.DynamicBaseKey, dynamic.DynamicBase!.Name.ToLowerInvariant());
+    }
+
+    /// <summary>A preset card's resolution changed: kept for that preset, used whenever the settings are at it.</summary>
+    private void SaveResolution(QualityPreset preset, TextureResolution resolution)
+    {
+        Save(preset.ResolutionKey, resolution.Value);
+        Raise(nameof(CacheEstimate));
+        Raise(nameof(CacheStatus));
     }
 
     private void ResetToDefaults()

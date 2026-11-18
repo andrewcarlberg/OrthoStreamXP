@@ -756,16 +756,17 @@ internal sealed class TextureStreamer : IDisposable
 
     /// <summary>
     /// The detail X-Plane holds of each texture it wanted within <paramref name="within"/>: the pixels across of the
-    /// finest level it read, which is what that texture takes of the graphics memory.
+    /// finest level it read, which is what that texture takes of the graphics memory, and whether it is an airport's.
     /// </summary>
-    public IEnumerable<int> HeldDetail(TimeSpan within)
+    public IEnumerable<HeldTexture> HeldDetail(TimeSpan within)
     {
         foreach (StreamedTexture t in _textures.Values)
         {
             int finest;
             long at;
             lock (t.Gate) (finest, at) = (t.FinestWanted, t.WantedAt);
-            if (finest != StreamedTexture.Unknown && Stopwatch.GetElapsedTime(at) < within) yield return Math.Max(1, t.Layout.Size >> finest);
+            if (finest != StreamedTexture.Unknown && Stopwatch.GetElapsedTime(at) < within)
+                yield return new HeldTexture(Math.Max(1, t.Layout.Size >> finest), TextureResolution.IsAirport(t.Name.Zoom));
         }
     }
 

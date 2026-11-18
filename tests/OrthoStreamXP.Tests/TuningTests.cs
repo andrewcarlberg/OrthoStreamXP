@@ -1,5 +1,6 @@
 using OrthoStreamXP.Scenery;
 using OrthoStreamXP.Setup;
+using OrthoStreamXP.Textures;
 using OrthoStreamXP.Tuning;
 
 namespace OrthoStreamXP.Tests;
@@ -350,9 +351,9 @@ public sealed class GraphicsMemoryTests : IDisposable
     [Fact]
     public void A_flight_measures_the_peak_and_sizes_above_it_follow_the_test_flight()
     {
-        var meter = new GraphicsMemoryMeter(flownSize: 2048);
-        meter.Sample([2048, 2048, 512]);
-        meter.Sample([2048]); // later, less: the peak stays
+        var meter = new GraphicsMemoryMeter(areaSize: 2048, airportSize: 2048);
+        meter.Sample([new(2048, false), new(2048, false), new(512, false)]);
+        meter.Sample([new(2048, false)]); // later, less: the peak stays
         GraphicsMemory memory = meter.Result();
 
         Assert.Equal(2 * GraphicsMemory.TextureBytes(2048) + GraphicsMemory.TextureBytes(512), memory.BytesAt(2048));
@@ -390,16 +391,129 @@ public sealed class PresetAdvisorTests
     }
 
     [Theory]
-    [InlineData(150, 16, "Extra")]  // fast and a big card: the finest
-    [InlineData(60, 16, "Ultra")]   // not fast enough for Extra's 4 times the downloads
-    [InlineData(150, 7, "Sharp")]   // Ultra's 8192 px textures and X-Plane would not fit in 7 GB
-    [InlineData(150, 6, "Balanced")] // nor Sharp's 4096 px in 6 GB
-    [InlineData(10, 16, "Balanced")]
-    public void After_a_flight_it_is_the_sharpest_the_connection_and_the_card_allow(double mbits, int cardGb, string expected)
+    [InlineData(150, 16, "Extra", "Full")]   // fast and a big card: the finest
+    [InlineData(60, 16, "Ultra", "Full")]    // not fast enough for Extra's 4 times the downloads
+    [InlineData(150, 7, "Ultra", "Medium")]  // Ultra's 8192 px would not fit in 7 GB; at Medium 4096 px everywhere, sharper airports than Sharp's
+    [InlineData(150, 6, "Sharp", "Medium")]  // nor 4096 px in 6 GB: 2048 px everywhere, from Sharp's finer imagery than Balanced's
+    [InlineData(10, 16, "Balanced", "Full")] // the connection decides the preset; the big card then holds it at Full
+    [InlineData(150, 5, "Balanced", "Low")]  // nothing beside X-Plane's own 5 GB: the smallest textures
+    public void After_a_flight_it_is_the_largest_textures_the_connection_and_the_card_allow(double mbits, int cardGb, string preset, string resolution)
     {
         Recommendation r = PresetAdvisor.Recommend(cardGb * Gb, GraphicsMemory.TestFlight, [Flight("level0_4096-4096", mbits)]);
-        Assert.Equal(expected, r.Preset.Name);
+        Assert.Equal((preset, resolution), (r.Preset.Name, r.Resolution.Label));
         Assert.Contains("Mbit/s", r.Reason, StringComparison.Ordinal);
+    }
+
+    private static ConnectionResult Tested(double mbits) =>
+        new(DateTime.UtcNow, "bing", [new ConnectionRound(64, 256, 0, (long)(mbits * 1e6 / 8), 1, 0.14, mbits)], 64);
+
+    [Fact]
+    public void The_faster_of_the_flights_and_the_connection_test_counts()
+    {
+        // Flights peaked at 47 Mbit/s, at what their preset asked; the test then measured 62: the connection does at least 62.
+        Recommendation tested = PresetAdvisor.Recommend(16 * Gb, GraphicsMemory.TestFlight, [Flight("level-1_4096-2048", 47)], Tested(62));
+        Assert.Equal(QualityPreset.Ultra, tested.Preset);
+        Assert.Contains("the connection test measured 62 Mbit/s", tested.Reason, StringComparison.Ordinal);
+
+        // A flight faster than the test: the flight counts, and the reason says so.
+        Recommendation flown = PresetAdvisor.Recommend(16 * Gb, GraphicsMemory.TestFlight, [Flight("level0_8192-4096", 140)], Tested(62));
+        Assert.Equal(QualityPreset.Extra, flown.Preset);
+        Assert.Contains("downloads reached 140 Mbit/s on your recent flights", flown.Reason, StringComparison.Ordinal);
+    }
+
+    private static Dictionary<string, PresetFit> Assess(long? card, IReadOnlyList<FlightReport> flights, ConnectionResult? test = null) =>
+        PresetAdvisor.Assess(card, GraphicsMemory.TestFlight, flights, test).ToDictionary(f => f.Preset.Name);
+
+    [Fact]
+    public void Every_card_says_whether_its_preset_also_suits_and_why_not()
+    {
+        // A 16 GB card, flights at 47 Mbit/s, a connection test at 59: Ultra is recommended.
+        Dictionary<string, PresetFit> fits = Assess(16 * Gb, [Flight("level-1_4096-2048", 47)], Tested(59));
+
+        Assert.All(new[] { "Balanced", "Sharp", "Ultra" }, name => Assert.Equal(("Also suits your PC.", TextureResolution.Full), (fits[name].Text, fits[name].Resolution)));
+        Assert.All(new[] { "Extra", "Dynamic" }, name =>
+        {
+            Assert.False(fits[name].Suits);
+            Assert.Equal("Needs about 100 Mbit/s of downloads: the connection test measured 59 Mbit/s.", fits[name].Text);
+        });
+    }
+
+    [Fact]
+    public void A_card_that_holds_a_preset_only_at_a_lower_resolution_says_which()
+    {
+        // 7 GB and a fast connection: Ultra at Medium is recommended; Extra suits at Low (4096 px everywhere) and Sharp at Full.
+        Dictionary<string, PresetFit> fits = Assess(7 * Gb, [Flight("level0_4096-4096", 150)]);
+        Assert.Equal(TextureResolution.Medium, fits["Ultra"].Resolution);
+        Assert.Equal(TextureResolution.Low, fits["Extra"].Resolution);
+        Assert.Equal("Also suits your PC at Low resolution: at Full its textures would not fit your 7 GB graphics card.", fits["Extra"].Text);
+        Assert.Equal(TextureResolution.Full, fits["Sharp"].Resolution);
+
+        // 5 GB is X-Plane's own: nothing fits.
+        Assert.All(Assess(5 * Gb, [Flight("level0_4096-4096", 150)]).Values, f => Assert.StartsWith("Too large for your 5 GB graphics card", f.Text, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Without_a_measured_connection_the_sharper_cards_ask_for_a_test()
+    {
+        Dictionary<string, PresetFit> fits = Assess(16 * Gb, []);
+        Assert.Equal("Also suits your PC.", fits["Sharp"].Text);
+        Assert.Equal("Fits your graphics card. Test your connection to see whether it keeps up with its downloads.", fits["Ultra"].Text);
+    }
+
+    [Fact]
+    public void A_blurry_flight_rules_out_its_quality_and_the_sharper_ones_on_their_cards()
+    {
+        Dictionary<string, PresetFit> fits = Assess(16 * Gb, [Flight("level0_8192-4096", 150, reads: 10_000, standIns: 900)]);
+        Assert.False(fits["Ultra"].Suits);
+        Assert.False(fits["Extra"].Suits);
+        Assert.True(fits["Sharp"].Suits);
+        Assert.StartsWith("Not for now", fits["Ultra"].Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_shrunk_resolution_is_recommended_only_when_Full_would_not_fit_and_says_so()
+    {
+        Recommendation r = PresetAdvisor.Recommend(7 * Gb, GraphicsMemory.TestFlight, [Flight("level0_4096-4096", 150)]);
+        Assert.Equal("Ultra at Medium resolution", r.Title);
+        Assert.Contains("would not hold Ultra's textures at Full resolution, at Medium it does", r.Reason, StringComparison.Ordinal);
+
+        // Equal textures: Ultra at Medium and Extra at Low are both 4096 px everywhere; Ultra downloads less for them.
+        Assert.Equal(QualityPreset.Ultra, r.Preset);
+        Assert.Equal(TextureResolution.Full, PresetAdvisor.Recommend(16 * Gb, GraphicsMemory.TestFlight, [Flight("level0_4096-4096", 150)]).Resolution);
+    }
+
+    [Fact]
+    public void Without_a_flight_a_small_card_gets_Sharps_imagery_at_a_lower_resolution()
+    {
+        Recommendation r = PresetAdvisor.Recommend(6 * Gb, GraphicsMemory.TestFlight, []);
+        Assert.Equal((QualityPreset.Sharp, TextureResolution.Medium), (r.Preset, r.Resolution));
+        Assert.Contains("Test your connection or fly once", r.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Measured_airports_let_Extra_at_Medium_count_its_airports_at_8192_and_its_areas_at_4096()
+    {
+        // A flight at Extra at Medium: the areas' textures 4096 px, the airports' 8192.
+        var meter = new GraphicsMemoryMeter(areaSize: 4096, airportSize: 8192);
+        meter.Sample([new(4096, false), new(4096, false), new(1024, false), new(8192, true)]);
+        GraphicsMemory memory = meter.Result();
+
+        long areas = 2 * GraphicsMemory.TextureBytes(4096) + GraphicsMemory.TextureBytes(1024);
+        Assert.Equal(areas + GraphicsMemory.TextureBytes(8192), memory.BytesAt(4096, 8192));
+        Assert.Equal(areas + GraphicsMemory.TextureBytes(4096), memory.BytesAt(4096, 4096)); // Extra at Low: the airports halved
+        Assert.True(memory.BytesAt(8192, 8192) > memory.BytesAt(4096, 8192)); // Extra at Full: the areas beyond the flown 4096, by the test flight's ratio
+
+        // Saved and read back with its airports' part.
+        using var tree = new TempTree();
+        memory.Save(tree.Root);
+        Assert.Equal(memory.BytesAt(4096, 8192), GraphicsMemory.Load(tree.Root).BytesAt(4096, 8192));
+    }
+
+    [Fact]
+    public void Without_the_airports_measured_both_count_at_the_larger_size()
+    {
+        Assert.Equal(GraphicsMemory.TestFlight.BytesAt(8192), GraphicsMemory.TestFlight.BytesAt(4096, 8192));
+        Assert.Equal(GraphicsMemory.TestFlight.BytesAt(1024), GraphicsMemory.TestFlight.BytesAt(1024, 512)); // below the model's sizes: as its smallest
     }
 
     [Fact]

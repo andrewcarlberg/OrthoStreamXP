@@ -24,7 +24,16 @@ internal sealed record CacheEntry(string Name, string Path, CacheEntryKind Kind,
 
 /// <param name="Zl16Size">Texture size of the ZL16 areas, in pixels.</param>
 /// <param name="Zl18Size">Texture size of the ZL18 (airport) areas, in pixels.</param>
-internal sealed record SetupName(int Level, int Zl16Size, int Zl18Size);
+internal sealed record SetupName(int Level, int Zl16Size, int Zl18Size)
+{
+    /// <summary>The resolution its textures were built at, from their sizes; null for sizes none gives.</summary>
+    public Textures.TextureResolution? Resolution => Textures.TextureResolution.All.FirstOrDefault(r =>
+        new Textures.TexturePlan(Level) { Resolution = r } is var plan && plan.SizeFor(16) == Zl16Size && plan.SizeFor(18) == Zl18Size);
+
+    /// <summary>Its preset's name, and a resolution below Full ("Ultra, Medium resolution"); null for a level no preset has.</summary>
+    public string? PresetTitle => QualityPreset.ForLevel(Level) is not { } preset ? null
+        : Resolution is { IsFull: false } resolution ? $"{preset.Name}, {resolution.Label} resolution" : preset.Name;
+}
 
 /// <summary>What the cache folder holds: one entry per setup, the logs and anything else.</summary>
 internal static partial class CacheInventory

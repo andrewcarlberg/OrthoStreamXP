@@ -396,10 +396,12 @@ internal sealed class MountSession : IDisposable
         return new AltitudeDetail(tiers, full);
     }
 
-    /// <summary>"Extra quality", "Dynamic quality": the quality in the words of the window.</summary>
+    /// <summary>"Extra quality", "Dynamic quality from Ultra": the quality in the words of the window.</summary>
     private static string QualityName(MountSettings s) =>
-        s.Dynamic is not null && s.Textures.LevelChange == QualityPreset.Dynamic.Level ? $"{QualityPreset.Dynamic.Name} quality"
-        : QualityPreset.ForLevel(s.Textures.LevelChange) is { } preset ? $"{preset.Name} quality" : $"level {s.Textures.LevelChange:+0;-0;0}";
+        (QualityPreset.Current(s.Textures.LevelChange, s.Dynamic is not null) is { } preset
+            ? preset.IsDynamic ? $"{preset.Name} quality from {preset.DynamicBase!.Name}" : $"{preset.Name} quality"
+            : $"level {s.Textures.LevelChange:+0;-0;0}")
+        + (s.Textures.Resolution.IsFull ? "" : $", {s.Textures.Resolution.Label} resolution");
 
     /// <summary>Keeps the cache within --cache-limit, removing the areas flown longest ago.</summary>
     private void TrimCache()
@@ -433,7 +435,9 @@ internal sealed class MountSession : IDisposable
             GraphicsMemory memory = _graphics.Result();
             memory.Save(AppPaths.History);
             Log.Info("Photo textures in graphics memory at the peak: " +
-                     string.Join(", ", GraphicsMemory.Sizes.Select(s => $"{s} px {CacheInventory.FormatBytes(memory.BytesAt(s))}")));
+                     string.Join(", ", GraphicsMemory.Sizes.Select(s => $"{s} px {CacheInventory.FormatBytes(memory.BytesAt(s))}")) +
+                     (memory.AirportBySize is { } airports && airports.TryGetValue(memory.FlownSize, out long airportBytes)
+                         ? $" (airports {CacheInventory.FormatBytes(airportBytes)} of it at {memory.FlownSize} px)" : ""));
         }
         Report.Save(FlightReport.PathFor(AppPaths.History));
         Log.Step($"Flight report: {Report.Duration.TotalMinutes:F0} min, {Report.DistanceKm:F0} km, {CacheInventory.FormatBytes(Report.Bytes)} downloaded " +
@@ -504,7 +508,7 @@ internal sealed class MountSession : IDisposable
             }
             if (_timeline.Count % 12 == 0 && _mounts.Any(m => m.Streamer is not null)) // every minute
             {
-                _graphics ??= new GraphicsMemoryMeter(Math.Max(_settings.Textures.SizeFor(16), _settings.Textures.SizeFor(18)));
+                _graphics ??= new GraphicsMemoryMeter(_settings.Textures.SizeFor(16), _settings.Textures.SizeFor(18));
                 _graphics.Sample(_mounts.SelectMany(m => m.Streamer?.HeldDetail(GraphicsMemory.HeldFor) ?? []));
             }
         }

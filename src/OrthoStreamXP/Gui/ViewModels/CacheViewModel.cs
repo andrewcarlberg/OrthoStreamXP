@@ -43,7 +43,7 @@ internal sealed class CacheItem : ObservableObject
             if (Entry.Kind == CacheEntryKind.Logs) return "Logs";
             if (Entry.Kind == CacheEntryKind.Base) return "Low-zoom base";
             if (Entry.Setup is not { } setup) return $"{Entry.Name} (older layout)";
-            if (QualityPreset.ForLevel(setup.Level) is { } preset) return preset.Name;
+            if (setup.PresetTitle is { } preset) return preset;
             return $"Level {setup.Level.ToString("+0;−0;0", CultureInfo.InvariantCulture)}";
         }
     }

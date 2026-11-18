@@ -133,7 +133,12 @@ internal sealed class SettingsDocument
             .AppendLine(CultureInfo.InvariantCulture, $"level-change       = {preset.Level.ToString(CultureInfo.InvariantCulture)}")
             .AppendLine("# Dynamic quality (the Dynamic preset): less detail high above the ground, where it cannot be seen (on or off)")
             .AppendLine(CultureInfo.InvariantCulture, $"{QualityPreset.DynamicQualityKey}    = {preset.Get(QualityPreset.DynamicQualityKey) ?? "off"}")
-            .AppendLine()
+            .AppendLine("# the preset Dynamic is near the ground, for the window: extra, ultra or sharp (level-change sets it while Dynamic is chosen)")
+            .AppendLine(CultureInfo.InvariantCulture, $"{QualityPreset.DynamicBaseKey,-18} = {(preset.DynamicBase ?? QualityPreset.Extra).Name.ToLowerInvariant()}")
+            .AppendLine("# each preset's resolution, from the same imagery: full; medium halves the textures of most areas, not the airports'; low halves them all");
+        foreach (QualityPreset choice in QualityPreset.Choices)
+            text.AppendLine(CultureInfo.InvariantCulture, $"{choice.ResolutionKey,-18} = {Textures.TextureResolution.Full.Value}");
+        text.AppendLine()
             .AppendLine("# --- Speed ------------------------------------------------------------------------")
             .AppendLine(CultureInfo.InvariantCulture, $"dds-build-workers  = {preset.Get("dds-build-workers")}")
             .AppendLine("download-workers   = 128")

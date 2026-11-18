@@ -84,8 +84,10 @@ internal sealed record MountSettings
         string cache = Path.TrimEndingDirectorySeparator(Path.GetFullPath(values.Required("cache")));
         int levelChange = values.Int("level-change", 0);
         if (levelChange is < -4 or > 2) throw new SettingsException("level-change must be between -4 and 2");
-        // The texture size follows the level (Balanced 2048/1024 ... Extra 8192); an older settings file's texture-quality is ignored.
-        var texturePlan = new TexturePlan(levelChange);
+        Scenery.DynamicOptions? dynamic = ParseDynamic(values);
+        // The texture size follows the level (Balanced 2048/1024 ... Extra 8192), shrunk by the preset's resolution; an
+        // older settings file's texture-quality is ignored.
+        var texturePlan = new TexturePlan(levelChange) { Resolution = ParseResolution(values, Setup.QualityPreset.Current(levelChange, dynamic is not null)) };
         // One cache folder for every setup: each texture plan keeps its files in its own subfolder.
         string planCache = Path.Join(cache, texturePlan.FolderName);
         // The regions an earlier version installed take their new names before the packages are listed (nothing is mounted yet).
@@ -147,7 +149,6 @@ internal sealed record MountSettings
         bool skipPhotosAtNight = ParseOnOff(skipValue) ?? throw new SettingsException($"skip-photos-at-night must be on or off, not '{skipValue}'");
         double skipSunBelow = values.Double("skip-photos-sun-below", -Scenery.Daylight.DefaultDarkBelow);
         if (skipSunBelow is < 0 or > 18) throw new SettingsException("skip-photos-sun-below must be between 0 and 18 degrees");
-        Scenery.DynamicOptions? dynamic = ParseDynamic(values);
 
         if (downloadWorkers < 1) throw new SettingsException("download-workers must be at least 1");
         if (downloadTimeout is < 1 or > 120) throw new SettingsException("download-timeout must be between 1 and 120 seconds");
@@ -313,6 +314,13 @@ internal sealed record MountSettings
     }
 
     /// <summary>Dynamic quality's steps, or null when it is off.</summary>
+    /// <summary>The resolution of the preset the settings are at (resolution-&lt;preset&gt;); Full for a level no preset has.</summary>
+    private static TextureResolution ParseResolution(SettingValues values, Setup.QualityPreset? preset)
+    {
+        if (preset is null || values.String(preset.ResolutionKey) is not { } value) return TextureResolution.Full;
+        return TextureResolution.Parse(value) ?? throw new SettingsException($"{preset.ResolutionKey} must be full, medium or low, not '{value}'");
+    }
+
     private static Scenery.DynamicOptions? ParseDynamic(SettingValues values)
     {
         string onValue = values.String("dynamic-quality") ?? "off";

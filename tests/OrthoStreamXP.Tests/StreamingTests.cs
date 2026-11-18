@@ -34,11 +34,11 @@ public sealed class StreamingTests : IDisposable
     /// </remarks>
     private Setup Streaming(int level = -3, double maxWait = 0.2, Func<int, TimeSpan>? delay = null, Setup? sharing = null, int detailedBuilds = 16,
         long buildTiles = TextureStreamer.DefaultBuildTiles, Func<Uri, Task?>? hold = null, Daylight? nightPause = null, ReadLog? readLog = null,
-        AltitudeDetail? altitude = null)
+        AltitudeDetail? altitude = null, TextureResolution? resolution = null)
     {
         FakeTileServer server = sharing?.Server ?? new FakeTileServer(delay: delay, hold: hold);
         TileSource tiles = sharing?.Tiles ?? Track(new TileSource("test", FakeTileServer.Template, 32, handler: server) { Store = new TileStore(_tree.PathOf("base"), maxZoom: 12) });
-        var plan = new TexturePlan(level, TextureSizing.MaxSize);
+        var plan = new TexturePlan(level, TextureSizing.MaxSize) { Resolution = resolution ?? TextureResolution.Full };
         var roots = new SceneryRoots(_tree.PathOf("source"), _tree.PathOf("cache"), null, plan);
         Directory.CreateDirectory(roots.Source);
         var builder = new TextureBuilder(tiles, 2);
@@ -304,6 +304,24 @@ public sealed class StreamingTests : IDisposable
 
         string cached = s.Roots.CachedFile(Texture())!;
         Assert.Equal(bytes, File.ReadAllBytes(cached).AsSpan((int)t.Layout.Offset(0), bytes.Length).ToArray());
+    }
+
+    [Fact]
+    public void At_medium_resolution_a_halved_texture_streams_from_the_same_tiles()
+    {
+        Setup s = Streaming(resolution: TextureResolution.Medium);
+        StreamedTexture t = s.Streamer.Get(Texture())!;
+        Assert.Equal(512, t.Layout.Size); // 1024 px at full resolution, halved in the ZL16 areas
+        Assert.Equal([14, 12], Enumerable.Range(0, 2).Select(t.ZoomFor)); // level 1 (256 px) is one zoom 12 tile
+
+        var (bytes, answer) = ReadLevel(s.Streamer, t, 0);
+        Assert.Equal((Band.Near, Served.Real), (answer.Band, answer.Served));
+        AssertColor(TileColor, bytes, 512);
+        Assert.All(Zooms(s.Server), z => Assert.Equal(14, z)); // the same 4 x 4 tiles at zoom 14 as Full's
+
+        byte[] cached = File.ReadAllBytes(s.Roots.CachedFile(Texture())!);
+        Assert.Equal(t.Layout.Length, cached.Length);
+        Assert.Equal<(int, int)?>((512, 512), Dds.ReadDimensions(s.Roots.CachedFile(Texture())!));
     }
 
     [Fact]

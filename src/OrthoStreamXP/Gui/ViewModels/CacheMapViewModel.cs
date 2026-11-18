@@ -50,7 +50,7 @@ internal sealed class AreaTile(CacheArea area, double left, double top, double w
     }
 
     internal static string QualityName(string setupFolder) =>
-        CacheInventory.ParseSetupName(setupFolder) is { } setup && QualityPreset.ForLevel(setup.Level) is { } preset ? preset.Name : setupFolder;
+        CacheInventory.ParseSetupName(setupFolder)?.PresetTitle ?? setupFolder;
 }
 
 /// <summary>
