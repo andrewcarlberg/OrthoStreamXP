@@ -11,11 +11,14 @@ internal sealed record DynamicOptions(double SharpAboveFt = DynamicOptions.Defau
 {
     public const double DefaultSharpAboveFt = 5000, DefaultBalancedAboveFt = 25000;
 
-    /// <summary>The steps, lowest first, that are coarser than <paramref name="mount"/> (a step no coarser is no saving).</summary>
+    /// <summary>
+    /// The steps, lowest first, that are coarser than <paramref name="mount"/> (a step no coarser is no saving). They
+    /// shrink as the mount's resolution does: Dynamic at Medium holds back to Sharp at Medium.
+    /// </summary>
     public IReadOnlyList<DetailTier> TiersBelow(TexturePlan mount)
     {
-        var tiers = new List<DetailTier> { new("Sharp", SharpAboveFt, new TexturePlan(-1)) };
-        if (BalancedAboveFt is { } balanced) tiers.Add(new DetailTier("Balanced", balanced, new TexturePlan(-2)));
+        var tiers = new List<DetailTier> { new("Sharp", SharpAboveFt, new TexturePlan(-1) { Resolution = mount.Resolution }) };
+        if (BalancedAboveFt is { } balanced) tiers.Add(new DetailTier("Balanced", balanced, new TexturePlan(-2) { Resolution = mount.Resolution }));
         return [.. tiers.Where(t => t.Plan.SizeFor(16) < mount.SizeFor(16) || t.Plan.SizeFor(18) < mount.SizeFor(18))];
     }
 }

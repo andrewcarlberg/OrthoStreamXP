@@ -86,12 +86,23 @@ internal sealed class CpuMeter
         }
         int fullCollections = GC.CollectionCount(2), since = fullCollections - Interlocked.Exchange(ref _fullCollections, fullCollections);
         return $"Load over the last {period.TotalMinutes:0.#} min (share of all {Environment.ProcessorCount} logical processors): OrthoStreamXP CPU {process}, " +
-               $"all of Windows {windows}; memory: {Memory(GC.GetGCMemoryInfo(), Environment.WorkingSet)}, " +
+               $"all of Windows {windows}; memory: {Memory(LastFullCollection(), Environment.WorkingSet)}, " +
                $"{since} full garbage collection{(since == 1 ? "" : "s")}";
     }
 
     /// <summary>
-    /// The process's memory in RAM (working set) and the .NET heap as the latest collection left it: how much of it is
+    /// The latest full collection, background or blocking (any collection before the first). Large objects are freed
+    /// only by those: after a quicker one the heap still counts every picture dropped since, as if it were held.
+    /// </summary>
+    private static GCMemoryInfo LastFullCollection()
+    {
+        GCMemoryInfo blocking = GC.GetGCMemoryInfo(GCKind.FullBlocking), background = GC.GetGCMemoryInfo(GCKind.Background);
+        GCMemoryInfo latest = blocking.Index >= background.Index ? blocking : background;
+        return latest.Index > 0 ? latest : GC.GetGCMemoryInfo();
+    }
+
+    /// <summary>
+    /// The process's memory in RAM (working set) and the .NET heap as the latest full collection left it: how much of it is
     /// free gaps between live objects, and the large objects (85 KB and up: tiles, pictures, chains), which are not
     /// moved to close their gaps unless the collector decides to compact them.
     /// </summary>
@@ -102,7 +113,7 @@ internal sealed class CpuMeter
         string large = generations.Length > largeObjects
             ? $", large objects {Bytes(generations[largeObjects].SizeAfterBytes)} ({Bytes(generations[largeObjects].FragmentationAfterBytes)} free)"
             : "";
-        return $"working set {Bytes(workingSet)}; .NET heap {Bytes(memory.HeapSizeBytes)} after the last collection, " +
+        return $"working set {Bytes(workingSet)}; .NET heap {Bytes(memory.HeapSizeBytes)} after the last full collection, " +
                $"{Bytes(memory.FragmentedBytes)} of it free gaps{large}, {Bytes(memory.TotalCommittedBytes)} committed";
 
         static string Bytes(long n) => CacheInventory.FormatBytes(n);

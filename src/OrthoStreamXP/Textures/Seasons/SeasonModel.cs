@@ -22,6 +22,7 @@ internal static class SeasonModel
         ["autumn"] = SeasonChoice.Autumn,
         ["late-autumn"] = SeasonChoice.LateAutumn,
         ["winter"] = SeasonChoice.Winter,
+        ["satellite"] = SeasonChoice.Satellite,
     };
 
     /// <param name="dayOfYear">0 is 1 January, as X-Plane's sim/time/local_date_days.</param>

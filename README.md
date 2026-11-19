@@ -26,13 +26,14 @@ Traditional photo scenery often requires downloading and building large areas be
 - **Less disk space wasted** — keep the areas you fly and automatically remove older scenery when your cache reaches its limit.
 - **Better scenery ahead** — OrthoStreamXP follows your aircraft and downloads upcoming areas before you reach them.
 - **Simple quality settings** — choose Balanced, Sharp, Ultra, or Extra without learning dozens of technical parameters.
+- **Sharp, crisp textures** — up to 8192 px, keeping all the detail of the imagery, sharpened a little and given a touch of contrast, as aerial photos are often hazy.
 - **Settings that adapt to your setup** — test your connection before the first flight to get a recommended preset, and after a sufficiently long flight, get recommendations based on how the scenery performed on your PC and internet connection. You decide whether to apply them.
-- **Even colours** — optionally soften the patchwork look where neighbouring photos were taken on different days, so a grey, hazy patch stands out less.
-- **Seasonal colours** — optionally give summer imagery a more autumnal or winter appearance, based on the simulated date and location.
+- **Seasonal colours** — optionally give summer imagery a more autumnal or winter appearance, based on the simulated date and location, with grass and fields optionally coloured by NASA's satellite record of how green each place really was.
 - **Clean photos up close** — X-Plane's procedural grass and dirt speckles are kept off the aerial photos by default, or faded to the strength you like, without changing your scenery packages.
 - **Towns lit at night** — optionally give the photo scenery street lamps and the light of the houses along X-Plane's roads, so towns glow after dark as on X-Plane's own scenery. You can also skip the detailed photos at night to save downloads, keeping the lights.
 - **Exposure and a live preview** — tone down photos that look too bright next to X-Plane's own scenery, and see any colour change on a photo from your cache before you fly.
 - **See what happened during your flight** — review download performance, scenery loading, and your flight route.
+- **Your scenery list, without Notepad** — switch X-Plane's scenery packages on or off and drag them into order on the X-Plane Custom Scenery page, and leave any of your photo scenery packages out of a flight with one switch on the Home page.
 
 ### Designed for everyday flying
 
@@ -87,7 +88,9 @@ OrthoStreamXP provides five presets:
 - **Sharp** — the recommended starting point for most systems.
 - **Ultra** — for systems with more graphics memory available.
 - **Extra** — the highest preset, intended for systems with greater resources.
-- **Dynamic** — Extra near the ground, Sharp from 5,000 ft and Balanced from 25,000 ft above it. High up, X-Plane still asks for full detail it cannot show, so Dynamic saves about half the downloads in a climb and cruise. On a descent it returns to full detail early, before the ground comes close.
+- **Dynamic** — Extra near the ground, Sharp from 5,000 ft and Balanced from 25,000 ft above it. High up, X-Plane still asks for full detail it cannot show, so Dynamic saves about half the downloads in a climb and cruise. On a descent it returns to full detail early, before the ground comes close. Its **Base** can be Ultra or Sharp instead of Extra, for a slower connection.
+
+Each preset also has a **Resolution**: **Full** keeps all the detail of the imagery, **Medium** halves the textures away from airports and **Low** halves them all, to fit a smaller graphics card from the same imagery.
 
 You can change presets in Settings. OrthoStreamXP also reports graphics memory usage from your flights and warns when the measured scenery requirements exceed your card's available memory.
 
@@ -98,7 +101,7 @@ After flights of at least 10 minutes, OrthoStreamXP may suggest adjustments base
 The Cache page helps you manage the imagery stored on your computer.
 
 - Set a cache limit from 25 GB up to 1 TB.
-- View cached areas on a map.
+- View cached areas on a full-width map you can zoom and drag.
 - Select and delete areas you no longer need.
 - Identify areas you have not flown over recently.
 
@@ -108,7 +111,7 @@ When the cache exceeds its limit, OrthoStreamXP removes older areas automaticall
 
 Most aerial imagery was captured during warmer months, so a winter flight can otherwise look unexpectedly green.
 
-Enable **Seasons** to adjust the appearance of vegetation and fields according to X-Plane's simulated date and the location you're flying over.
+Turn on **Colour the scenery for the season** (Settings › Colours) to adjust the appearance of vegetation and fields according to X-Plane's simulated date and the location you're flying over.
 
 - **Spring:** fresh greens return.
 - **Summer:** the imagery as it was photographed.
@@ -116,6 +119,8 @@ Enable **Seasons** to adjust the appearance of vegetation and fields according t
 - **Winter:** deciduous trees appear bare, while fields shift towards brown and olive.
 
 Water, roads, buildings, rock, and sand retain their original colours. Seasonal colouring does not generate snow; snow remains part of X-Plane's weather.
+
+Choose **Satellite** as the season to colour the grass and fields by NASA's satellite record of the last year instead of the calendar alone: Atlantic and Mediterranean coasts stay green in a mild winter, fields dry out in a dry summer, and the tropics show their dry season. Trees keep the calendar. It downloads about 2 MB once a year for each area of about 500 km you fly over.
 
 ## Known limitations
 
@@ -131,7 +136,7 @@ OrthoStreamXP is currently in beta. Please keep the following in mind:
 
 ## Imagery and licensing
 
-OrthoStreamXP is free software released under the **GNU General Public License v3 (GPL-3.0)**.
+OrthoStreamXP is free software released under the **GNU General Public License v3 (GPL-3.0)**. It includes Intel's [ISPC Texture Compressor](https://github.com/GameTechDev/ISPCTextureCompressor) (MIT) to encode textures.
 
 The aerial imagery is provided by external services, including Bing Maps, Esri World Imagery, and Geoportal for Poland. The imagery is not part of the OrthoStreamXP software and remains subject to each provider's terms of use.
 

@@ -3,14 +3,19 @@ using System.Globalization;
 namespace OrthoStreamXP.Textures;
 
 /// <summary>
-/// Source tiles kept on disk for good: the low-zoom base (zoom 12 and coarser). One zoom 12 tile covers a whole
+/// Source tiles kept on disk for good: the low-zoom base (zoom 13 and coarser). Four zoom 13 tiles cover a whole
 /// ZL16 texture, so far scenery is drawn from here at once, without a download, on every later flight. The base
 /// is shared by every setup and package in the cache, and deleting a setup's textures leaves it in place.
-/// Tiles are kept as the provider sent them (JPEG or PNG), about 10-25 KB each.
+/// Tiles are kept as the provider sent them (JPEG or PNG), about 10-30 KB each.
 /// </summary>
+/// <remarks>
+/// Not zoom 12: Bing's zoom 12 and coarser are other imagery, lighter and yellower than its zoom 13 and finer (mean
+/// colour 31 steps off zoom 16 at 20 places, up to 110 in the Alps; zoom 13 is 2 off), so far levels and the colour
+/// matching's target made from it did not match the textures' detailed levels. Esri's zooms agree throughout.
+/// </remarks>
 internal sealed class TileStore(string root, int maxZoom = TileStore.DefaultMaxZoom)
 {
-    public const int DefaultMaxZoom = 12;
+    public const int DefaultMaxZoom = 13;
     /// <summary>The folder in the cache that holds the base.</summary>
     public const string FolderName = ".orthostreamxp-base";
 

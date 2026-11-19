@@ -24,14 +24,14 @@ public sealed class MountSmokeTests : IDisposable
         string mount = _tree.PathOf("mount");
         MountSettings settings = MountSettings.FromValues(TestSettings.Of(
             $"source = {_tree.PathOf("source")}", $"cache = {_tree.PathOf("cache")}", $"mountpoint = {mount}",
-            "texture-provider = synthetic", "level-change = -3"));
+            "texture-provider = synthetic", "level-change = -2"));
 
         // Dispose stops without the flight summaries, so nothing is written to the user's history.
         using (MountSession.Start(settings))
         {
             byte[] dds = File.ReadAllBytes(Path.Join(mount, "textures", Stem + ".dds"));
             Assert.Equal("DDS "u8.ToArray(), dds[..4]);
-            Assert.Equal(DdsLayout.For(512).Length, dds.Length); // level -3: a ZL16 texture is 512 px
+            Assert.Equal(DdsLayout.For(2048).Length, dds.Length); // Balanced: a ZL16 texture is 2048 px, the detail of zoom 15
 
             string definition = File.ReadAllText(Path.Join(mount, "terrain", Stem + ".ter"));
             Assert.Contains($"BASE_TEX_NOWRAP ../textures/{Stem}.dds", definition, StringComparison.Ordinal);

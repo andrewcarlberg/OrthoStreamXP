@@ -39,6 +39,15 @@ internal sealed class MipWarmer : IDisposable
     /// <summary>Small builds at once: as many as the streamer lets builds ahead of X-Plane run.</summary>
     private const int SmallInFlight = TextureStreamer.DefaultMaxBuilds / 2;
 
+    /// <summary>
+    /// The size of the level X-Plane reads of every texture of a DSF it loads, however far away the texture is: in the
+    /// test flight of 17 Nov every such read of the 8192 px ZL16 and ZL18 textures wanted their 512 px level, 100-200 km
+    /// out where the distance asks for 64 px, and read nothing more of 95 % of them. For a ZL16 texture that is the
+    /// low-zoom base; for a ZL18 one four zoom 15 tiles, which X-Plane's loading waited for, 5 s after opening the
+    /// .ter, some 0.3-6 s for each of 400 textures per scenery tile.
+    /// </summary>
+    internal const int LoadReadPx = 512;
+
     /// <summary>The places a load-ahead build takes, each kind with its own limit.</summary>
     internal enum BuildKind { Base, Small, Heavy }
     /// <summary>How often the progress is logged while X-Plane loads scenery, and otherwise.</summary>
@@ -47,8 +56,9 @@ internal sealed class MipWarmer : IDisposable
     /// <summary>
     /// A texture to warm; <paramref name="Mip"/> and <paramref name="Priority"/> fixed for the flight-path prefetch.
     /// <paramref name="Recheck"/>: queued again because the aircraft moved, not because X-Plane loaded it.
+    /// <paramref name="Upcoming"/>: of a scenery tile X-Plane has yet to load (<see cref="PrepareUpcoming"/>).
     /// </summary>
-    private readonly record struct Request(VirtualPath Texture, int? Mip = null, int? Priority = null, bool Recheck = false);
+    private readonly record struct Request(VirtualPath Texture, int? Mip = null, int? Priority = null, bool Recheck = false, bool Upcoming = false);
 
     private readonly TextureCatalog _catalog;
     private readonly TextureStreamer _streamer;
@@ -62,7 +72,7 @@ internal sealed class MipWarmer : IDisposable
     private Task? _loop;
     /// <summary>Builds running, by <see cref="BuildKind"/>.</summary>
     private readonly int[] _running = new int[3];
-    private int _queued, _alreadyHad;
+    private int _queued, _alreadyHad, _upcoming;
     private (int Known, int Waiting, int Queued, int AlreadyHad) _reported;
     private TimeSpan _reportedAt;
 
@@ -114,6 +124,28 @@ internal sealed class MipWarmer : IDisposable
         return textures.Count;
     }
 
+    /// <summary>
+    /// The textures of a scenery tile X-Plane will load soon: each fetched to the level X-Plane reads when it loads the
+    /// tile (<see cref="LoadReadPx"/>), after everything the loaded scenery needs. Returns how many were queued.
+    /// </summary>
+    public int PrepareUpcoming(IReadOnlyList<VirtualPath> textures)
+    {
+        int added = 0;
+        lock (_gate)
+            foreach (VirtualPath texture in textures)
+                if (_waiting.TryAdd(texture.Key, new Request(texture, Upcoming: true))) added++;
+        Wake();
+        return added;
+    }
+
+    /// <summary>The level X-Plane reads of the texture when it loads its scenery tile (<see cref="LoadReadPx"/>), at most the base level.</summary>
+    internal static int LoadMip(StreamedTexture t)
+    {
+        int mip = 0;
+        while (mip < t.BaseMip && t.Layout.SizeOf(mip) > LoadReadPx) mip++;
+        return mip;
+    }
+
     private void Add(Request request)
     {
         lock (_gate) _waiting.TryAdd(request.Texture.Key, request);
@@ -125,14 +157,21 @@ internal sealed class MipWarmer : IDisposable
         if (_wake.CurrentCount == 0) _wake.Release();
     }
 
-    /// <summary>The level to fetch and its priority, and the distance (for the order); null when it is not a photo texture.</summary>
-    internal (StreamedTexture Texture, int Mip, int Priority, double Distance)? Target(VirtualPath path, int? mip = null, int? priority = null)
+    /// <summary>
+    /// The level to fetch and its priority, and the distance (for the order); null when it is not a photo texture.
+    /// Never coarser than the level X-Plane reads when it loads the texture's tile (<see cref="LoadMip"/>): it reads
+    /// that some seconds after it opens the texture's terrain definition, whatever the distance.
+    /// </summary>
+    internal (StreamedTexture Texture, int Mip, int Priority, double Distance)? Target(VirtualPath path, int? mip = null, int? priority = null, bool upcoming = false)
     {
         if (_streamer.Get(path) is not { } t) return null;
+        int load = LoadMip(t);
         if (_view.Current is not { } camera)
-            return (t, mip ?? t.BaseMip, priority ?? FetchPriority.Background, double.MaxValue);
+            return (t, mip ?? load, priority ?? FetchPriority.Background, double.MaxValue);
         double distance = ViewTracker.DistanceM(camera, t.Lat, t.Lon);
         if (mip is int fixedMip) return (t, fixedMip, priority ?? FetchPriority.Warm, distance);
+        // A tile X-Plane has yet to load: minutes ahead, after what the loaded scenery needs.
+        if (upcoming) return (t, load, FetchPriority.Background, distance);
 
         double soon = distance;
         if (camera.Motion is { SpeedMps: >= PrefetchPlanner.MovingSpeedMps } motion)
@@ -142,14 +181,15 @@ internal sealed class MipWarmer : IDisposable
             soon = Math.Max(0, distance - Math.Max(0, closing) * LeadSeconds);
         }
         int wanted = _streamer.Model.MipFor(soon, t.SizeM, t.Layout.Size);
-        int target = Math.Min(wanted, t.BaseMip);
+        // Raised to the load level, X-Plane reads it within seconds whatever the distance: as soon as a middle-distance level.
+        if (load < wanted) return (t, load, FetchPriority.Warm + load, distance);
         int targetPriority = TextureStreamer.BandOf(t, wanted) switch
         {
             Band.Near => FetchPriority.NearWarm,
             Band.Middle => FetchPriority.Warm + wanted,
             _ => FetchPriority.Background,
         };
-        return (t, target, targetPriority, distance);
+        return (t, wanted, targetPriority, distance);
     }
 
     private async Task RunAsync()
@@ -177,7 +217,7 @@ internal sealed class MipWarmer : IDisposable
         lock (_gate) waiting = [.. _waiting.Values];
         if (waiting.Length == 0) return;
         var ranked = waiting
-            .Select(r => (Request: r, Target: Target(r.Texture, r.Mip, r.Priority)))
+            .Select(r => (Request: r, Target: Target(r.Texture, r.Mip, r.Priority, r.Upcoming)))
             .OrderBy(x => x.Target?.Priority ?? int.MaxValue).ThenBy(x => x.Target?.Distance ?? double.MaxValue);
         foreach (var (request, target) in ranked)
         {
@@ -192,7 +232,7 @@ internal sealed class MipWarmer : IDisposable
             if (_streamer.RealFrom(t.Texture) <= t.Mip)
             {
                 Remove(request);
-                if (!request.Recheck) Interlocked.Increment(ref _alreadyHad);
+                if (!request.Recheck && !request.Upcoming) Interlocked.Increment(ref _alreadyHad);
                 continue;
             }
             if (_streamer.Warm(request.Texture, t.Mip, t.Priority) is not { } build)
@@ -202,6 +242,7 @@ internal sealed class MipWarmer : IDisposable
             }
             Remove(request);
             Interlocked.Increment(ref _queued);
+            if (request.Upcoming) Interlocked.Increment(ref _upcoming);
             if (build.IsCompleted) continue;
             Interlocked.Increment(ref _running[(int)kind]);
             build.ContinueWith(_ =>
@@ -245,7 +286,8 @@ internal sealed class MipWarmer : IDisposable
         if (_clock.Elapsed - _reportedAt < interval) return;
         (_reported, _reportedAt) = (now, _clock.Elapsed);
         Log.Info($"Load-ahead: {Count(now.Known, "texture")} of the loaded scenery known, {now.Waiting} waiting for a place; " +
-                 $"{Count(now.Queued, "build")} started so far, {now.AlreadyHad} had what they needed when X-Plane loaded them");
+                 $"{Count(now.Queued, "build")} started so far ({Volatile.Read(ref _upcoming)} for scenery X-Plane has yet to load), " +
+                 $"{now.AlreadyHad} had what they needed when X-Plane loaded them");
     }
 
     private static string Count(int n, string noun) => $"{n} {noun}{(n == 1 ? "" : "s")}";

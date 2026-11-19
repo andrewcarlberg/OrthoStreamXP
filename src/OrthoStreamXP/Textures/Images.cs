@@ -1,3 +1,4 @@
+using System.Buffers;
 using SkiaSharp;
 
 namespace OrthoStreamXP.Textures;
@@ -12,17 +13,30 @@ internal static class Images
     /// <param name="scale">Below 1: decode at about this fraction of the size, which a JPEG does far faster (1/2, 1/4, 1/8).</param>
     public static (byte[] Rgb, int Width, int Height) Decode(byte[] encoded, float scale = 1)
     {
+        using SKBitmap bitmap = DecodeBitmap(encoded, scale);
+        byte[] rgb = new byte[bitmap.Width * bitmap.Height * 3];
+        ToRgb(bitmap, rgb);
+        return (rgb, bitmap.Width, bitmap.Height);
+    }
+
+    private static SKBitmap DecodeBitmap(byte[] encoded, float scale)
+    {
         using SKData data = SKData.CreateCopy(encoded);
         using SKCodec codec = SKCodec.Create(data) ?? throw new InvalidDataException("Not a decodable image");
         SKSizeI size = scale < 1 ? codec.GetScaledDimensions(scale) : codec.Info.Size;
         var info = new SKImageInfo(size.Width, size.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
-        using var bitmap = new SKBitmap(info);
+        var bitmap = new SKBitmap(info);
         SKCodecResult result = codec.GetPixels(info, bitmap.GetPixels());
-        if (result != SKCodecResult.Success) throw new InvalidDataException($"Image decode failed: {result}");
+        if (result == SKCodecResult.Success) return bitmap;
+        bitmap.Dispose();
+        throw new InvalidDataException($"Image decode failed: {result}");
+    }
 
-        int width = info.Width, height = info.Height, rowBytes = bitmap.RowBytes;
+    /// <summary>A decoded bitmap's pixels as tightly packed RGB.</summary>
+    private static void ToRgb(SKBitmap bitmap, Span<byte> rgb)
+    {
+        int width = bitmap.Width, height = bitmap.Height, rowBytes = bitmap.RowBytes;
         ReadOnlySpan<byte> rgba = bitmap.GetPixelSpan();
-        byte[] rgb = new byte[width * height * 3];
         for (int y = 0; y < height; y++)
         {
             ReadOnlySpan<byte> row = rgba.Slice(y * rowBytes, width * 4);
@@ -34,7 +48,6 @@ internal static class Images
                 rgb[o + 2] = row[x * 4 + 2];
             }
         }
-        return (rgb, width, height);
     }
 
     /// <summary>Whether an image has any pixel that is not fully opaque (a JPEG never has; nothing is decoded for one).</summary>
@@ -59,8 +72,41 @@ internal static class Images
     /// <summary>Decodes a source tile and makes sure it is 256x256 (providers occasionally send other sizes).</summary>
     public static byte[] DecodeTile(byte[] encoded)
     {
-        var (rgb, width, height) = Decode(encoded);
-        return width == Tiles.TilePx && height == Tiles.TilePx ? rgb : Resize(rgb, width, height, Tiles.TilePx, Tiles.TilePx, 1);
+        byte[] rgb = new byte[Tiles.TileBytes];
+        DecodeTileInto(encoded, rgb);
+        return rgb;
+    }
+
+    /// <summary>
+    /// <see cref="DecodeTile"/> into <paramref name="rgb"/> (at least <see cref="Tiles.TileBytes"/> long): no array of
+    /// its own, except for a tile of another size, which is decoded whole and resized first.
+    /// </summary>
+    public static void DecodeTileInto(byte[] encoded, Span<byte> rgb)
+    {
+        if (rgb.Length < Tiles.TileBytes) throw new ArgumentException("The destination is smaller than a tile", nameof(rgb));
+        using SKBitmap bitmap = DecodeBitmap(encoded, 1);
+        if (bitmap.Width == Tiles.TilePx && bitmap.Height == Tiles.TilePx)
+        {
+            ToRgb(bitmap, rgb);
+            return;
+        }
+        byte[] whole = new byte[bitmap.Width * bitmap.Height * 3];
+        ToRgb(bitmap, whole);
+        Resize(whole, bitmap.Width, bitmap.Height, Tiles.TilePx, Tiles.TilePx, 1).CopyTo(rgb);
+    }
+
+    /// <summary>Throws <see cref="InvalidDataException"/> unless the bytes decode as a tile (error pages, truncated data); nothing is kept.</summary>
+    public static void CheckTile(byte[] encoded)
+    {
+        byte[] scratch = ArrayPool<byte>.Shared.Rent(Tiles.TileBytes);
+        try
+        {
+            DecodeTileInto(encoded, scratch);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(scratch);
+        }
     }
 
     /// <summary>Box-halving while at least 2x too large, then bicubic for whatever ratio remains.</summary>

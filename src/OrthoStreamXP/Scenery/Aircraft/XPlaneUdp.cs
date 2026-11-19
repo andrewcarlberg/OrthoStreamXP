@@ -55,6 +55,12 @@ internal static class XPlaneUdp
         return packet;
     }
 
+    /// <summary>X-Plane's command that loads the scenery again, as Developer › Reload scenery does.</summary>
+    public const string ReloadSceneryCommand = "sim/operation/reload_scenery";
+
+    /// <summary>A CMND request: X-Plane runs the command once. Layout: "CMND\0", then the command's name.</summary>
+    public static byte[] CommandRequest(string command) => [.. "CMND\0"u8, .. Encoding.ASCII.GetBytes(command)];
+
     /// <summary>The (index, value) pairs of an RREF answer: "RREF" + 1 byte, then 8 bytes per value.</summary>
     public static IEnumerable<(int Index, float Value)> ReadSubscribed(byte[] packet, int length)
     {

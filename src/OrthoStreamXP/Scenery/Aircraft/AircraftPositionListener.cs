@@ -106,6 +106,21 @@ internal sealed class AircraftPositionListener(IReadOnlyList<PrefetchTarget> tar
         }
     }
 
+    /// <summary>Asks X-Plane to run a command (<see cref="XPlaneUdp.CommandRequest"/>); false when it could not be sent.</summary>
+    public bool SendCommand(string command)
+    {
+        try
+        {
+            _socket?.SendTo(XPlaneUdp.CommandRequest(command), options.XPlane);
+            return _socket is not null;
+        }
+        catch (Exception ex) when (ex is SocketException or ObjectDisposedException)
+        {
+            Log.Warning($"Could not ask X-Plane to run {command}: {ex.Message}");
+            return false;
+        }
+    }
+
     public void Stop()
     {
         if (_stop.IsCancellationRequested) return;

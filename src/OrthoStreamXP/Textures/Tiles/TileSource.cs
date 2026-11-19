@@ -8,6 +8,8 @@ namespace OrthoStreamXP.Textures;
 internal sealed class TileStats
 {
     public int Hits, Misses, Calls, Fallbacks;
+    /// <summary>Tiles no provider has, made from a coarser tile at hand (<see cref="TextureBuilder"/>).</summary>
+    public int FromParents;
     /// <summary>Bytes of the tiles downloaded for the build (every server answer, as the session's own count).</summary>
     public long Bytes;
     private long _downloadTicks;
@@ -79,7 +81,7 @@ internal sealed record ImageryProvider(string Name, string Template)
 }
 
 /// <summary>
-/// Downloads and decodes 256x256 source tiles. Decoded tiles stay in a bounded RAM cache only while
+/// Downloads 256x256 source tiles. Tiles (as downloaded, see <see cref="SourceTile"/>) stay in a bounded RAM cache only while
 /// builds are active, and concurrent requests for the same tile share one download. A tile the first
 /// provider cannot supply is asked from the next one in the list. Downloads wait in one queue ordered by
 /// <see cref="FetchPriority"/>; tiles of the low-zoom base (<see cref="Store"/>) are kept on disk for good.
@@ -95,7 +97,7 @@ internal sealed class TileSource : IDisposable
     {
         private readonly List<FetchTicket> _tickets = [first];
 
-        public required Task<byte[]> Task { get; init; }
+        public required Task<SourceTile> Task { get; init; }
 
         public void Join(FetchTicket ticket)
         {
@@ -113,7 +115,7 @@ internal sealed class TileSource : IDisposable
     private readonly HttpClient _http;
     private readonly PriorityGate _gate;
     private readonly Lock _cacheLock = new();
-    private readonly Dictionary<string, byte[]> _cache = [];
+    private readonly Dictionary<string, SourceTile> _cache = [];
     private readonly Queue<string> _cacheOrder = new();
     private readonly Dictionary<string, Pending> _inFlight = [];
     private long _cacheBytes;
@@ -244,15 +246,22 @@ internal sealed class TileSource : IDisposable
         GetTileAsync(x, y, zoom, new FetchTicket(priority ? FetchPriority.Read : FetchPriority.Warm), stats);
 
     /// <summary>A decoded 256x256 RGB tile, downloaded at the urgency of <paramref name="ticket"/> if it must be.</summary>
-    public async Task<byte[]> GetTileAsync(int x, int y, int zoom, FetchTicket ticket, TileStats stats)
+    public async Task<byte[]> GetTileAsync(int x, int y, int zoom, FetchTicket ticket, TileStats stats) =>
+        (await GetSourceTileAsync(x, y, zoom, ticket, stats).ConfigureAwait(false)).ToRgb();
+
+    /// <summary>
+    /// The tile as kept (decoded where its pixels are used, <see cref="SourceTile.CopyPixelsTo"/>), downloaded at the
+    /// urgency of <paramref name="ticket"/> if it must be.
+    /// </summary>
+    public async Task<SourceTile> GetSourceTileAsync(int x, int y, int zoom, FetchTicket ticket, TileStats stats)
     {
         string key = $"{zoom}/{x}/{y}";
         Pending? shared;
-        var mine = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var mine = new TaskCompletionSource<SourceTile>(TaskCreationOptions.RunContinuationsAsynchronously);
         var pending = new Pending(ticket) { Task = mine.Task };
         lock (_cacheLock)
         {
-            if (_cache.TryGetValue(key, out byte[]? cached))
+            if (_cache.TryGetValue(key, out SourceTile? cached))
             {
                 Interlocked.Increment(ref stats.Hits);
                 return cached;
@@ -268,10 +277,10 @@ internal sealed class TileSource : IDisposable
 
         try
         {
-            byte[]? stored = Stored(x, y, zoom);
+            SourceTile? stored = Stored(x, y, zoom);
             if (stored is not null) Interlocked.Increment(ref stats.Hits);
             else Interlocked.Increment(ref stats.Misses);
-            byte[] tile = stored ?? await DownloadAsync(x, y, zoom, pending, stats).ConfigureAwait(false);
+            SourceTile tile = stored ?? await DownloadAsync(x, y, zoom, pending, stats).ConfigureAwait(false);
             lock (_cacheLock)
             {
                 _inFlight.Remove(key);
@@ -296,17 +305,18 @@ internal sealed class TileSource : IDisposable
     public byte[]? TryGetStored(int x, int y, int zoom)
     {
         lock (_cacheLock)
-            if (_cache.TryGetValue($"{zoom}/{x}/{y}", out byte[]? cached)) return cached;
-        return Stored(x, y, zoom);
+            if (_cache.TryGetValue($"{zoom}/{x}/{y}", out SourceTile? cached)) return cached.ToRgb();
+        return Stored(x, y, zoom)?.ToRgb();
     }
 
-    /// <summary>The tile decoded from the low-zoom base, or null (a damaged file is downloaded again).</summary>
-    private byte[]? Stored(int x, int y, int zoom)
+    /// <summary>The tile from the low-zoom base, or null (a damaged file is downloaded again).</summary>
+    private SourceTile? Stored(int x, int y, int zoom)
     {
         if (IsSynthetic || Store?.TryRead(x, y, zoom) is not { } encoded) return null;
         try
         {
-            return Images.DecodeTile(encoded);
+            Images.CheckTile(encoded);
+            return SourceTile.FromEncoded(encoded);
         }
         catch (InvalidDataException)
         {
@@ -314,15 +324,16 @@ internal sealed class TileSource : IDisposable
         }
     }
 
-    private async Task<byte[]> DownloadAsync(int x, int y, int zoom, Pending pending, TileStats stats)
+    private async Task<SourceTile> DownloadAsync(int x, int y, int zoom, Pending pending, TileStats stats)
     {
-        if (IsSynthetic) return Images.SyntheticTile(x, y, zoom);
+        if (IsSynthetic) return SourceTile.FromRgb(Images.SyntheticTile(x, y, zoom));
         await _gate.WaitAsync(pending.Priority).ConfigureAwait(false);
         try
         {
             Exception? last = null;
-            byte[]? placeholder = null; // a "no imagery here" picture, used when no provider has the tile
+            SourceTile? placeholder = null; // a "no imagery here" picture, used when no provider has the tile
             var failures = new List<string>();
+            bool forGood = true; // every provider said "not here" (no network trouble): asking again changes nothing
             for (int p = 0; p < _providers.Count; p++)
             {
                 ImageryProvider provider = _providers[p];
@@ -347,12 +358,13 @@ internal sealed class TileSource : IDisposable
                         Interlocked.Add(ref _bytesDownloaded, bytes.Length);
                         Interlocked.Add(ref stats.Bytes, bytes.Length);
                         Interlocked.Add(ref _tileTicks, Stopwatch.GetElapsedTime(started).Ticks);
-                        byte[] decoded = Images.DecodeTile(bytes); // rejects error pages and truncated data
+                        Images.CheckTile(bytes); // rejects error pages and truncated data
+                        var tile = SourceTile.FromEncoded(bytes);
                         stats.AddDownload(Stopwatch.GetElapsedTime(started));
                         // Bing answers a place without imagery with 200 and a placeholder picture, marked only by this header.
                         if (response.Headers.TryGetValues("X-VE-Tile-Info", out var info) && info.Contains("no-tile", StringComparer.OrdinalIgnoreCase))
                         {
-                            placeholder ??= decoded;
+                            placeholder ??= tile;
                             last = new HttpRequestException("no imagery here (X-VE-Tile-Info: no-tile)", null, HttpStatusCode.NotFound);
                             break;
                         }
@@ -365,7 +377,7 @@ internal sealed class TileSource : IDisposable
                         }
                         if (p > 0) Interlocked.Increment(ref stats.Fallbacks);
                         if (Store?.Covers(zoom) == true) Store.Save(x, y, zoom, bytes); // never a placeholder
-                        return decoded;
+                        return tile;
                     }
                     catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException or InvalidDataException)
                     {
@@ -376,11 +388,13 @@ internal sealed class TileSource : IDisposable
                     }
                     if (attempt < _attempts - 1) await Task.Delay(Math.Min(2000, 250 << attempt)).ConfigureAwait(false);
                 }
+                if (last is null || !IsDefinitive(last)) forGood = false;
                 failures.Add(_providers.Count > 1 ? $"{provider.Name}: {last?.Message}" : last?.Message ?? "");
             }
             if (placeholder is not null) return placeholder;
             Interlocked.Increment(ref _failedTiles);
-            throw new IOException($"Failed downloading tile {zoom}/{x}/{y}: {string.Join("; ", failures)}", last);
+            string message = $"Failed downloading tile {zoom}/{x}/{y}: {string.Join("; ", failures)}";
+            throw forGood ? new TileNotAvailableException(message, last) : new IOException(message, last);
         }
         finally
         {
@@ -402,13 +416,13 @@ internal sealed class TileSource : IDisposable
         .Replace("{q}", Tiles.QuadKey(x, y, zoom))
         .Replace("{s}", server.ToString(CultureInfo.InvariantCulture));
 
-    private void AddToCache(string key, byte[] tile)
+    private void AddToCache(string key, SourceTile tile)
     {
         if (!_cache.TryAdd(key, tile)) return;
         _cacheOrder.Enqueue(key);
         _cacheBytes += tile.Length;
         while (_cacheBytes > MaxCacheBytes && _cacheOrder.TryDequeue(out string? old))
-            if (_cache.Remove(old, out byte[]? removed)) _cacheBytes -= removed.Length;
+            if (_cache.Remove(old, out SourceTile? removed)) _cacheBytes -= removed.Length;
     }
 
     private void ClearCache()

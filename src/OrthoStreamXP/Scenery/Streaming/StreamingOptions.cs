@@ -14,5 +14,10 @@ namespace OrthoStreamXP.Scenery;
 /// which never have to wait for an ahead build to finish.
 /// </param>
 /// <param name="MaxBuilds">Builds at once whatever their size: a few dozen already keep every download worker busy.</param>
-internal sealed record StreamingOptions(double NearWaitSeconds, double MaxWaitSeconds, long RamBudgetBytes = 1L << 30,
+/// <param name="RamBudgetBytes">
+/// The texture levels kept in RAM for X-Plane's reads; the least recently read go first, read again from the cache or
+/// made again from the low-zoom base when X-Plane asks. X-Plane reads 95 % of the textures once (test flight of 17 Nov),
+/// so 1 GB of them mostly waited for reads that never came, in memory X-Plane was short of.
+/// </param>
+internal sealed record StreamingOptions(double NearWaitSeconds, double MaxWaitSeconds, long RamBudgetBytes = 512L << 20,
     long BuildMemoryBytes = 512L << 20, long BuildTiles = TextureStreamer.DefaultBuildTiles, int MaxBuilds = TextureStreamer.DefaultMaxBuilds);

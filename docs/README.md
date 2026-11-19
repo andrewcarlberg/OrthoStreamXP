@@ -12,8 +12,9 @@ OrthoStreamXP adds real-world aerial photos to your X-Plane 12 scenery while you
 4. [Settings](settings.md): quality and ground detail, folders, downloads, colours, seasons and exposure, night lights and photos at night.
 5. [Cache](cache.md): how much disk space the scenery uses and how to free it.
 6. [Packages](packages.md): downloading the ground mesh of a whole region, the quickest way to get scenery packages.
-7. [Troubleshooting](troubleshooting.md): common problems, the log, updates, uninstalling and reporting a bug.
-8. [Questions and answers](faq.md): what OrthoStreamXP does and does not do, choosing the packages folder, switching from AutoOrtho.
+7. [X-Plane Custom Scenery](custom-scenery.md): switching X-Plane's scenery packages on or off and changing their order.
+8. [Troubleshooting](troubleshooting.md): common problems, the log, updates, uninstalling and reporting a bug.
+9. [Questions and answers](faq.md): what OrthoStreamXP does and does not do, choosing the packages folder, switching from AutoOrtho.
 
 ## The short version
 

@@ -15,16 +15,54 @@
         <DataTemplate x:Key="PresetChoice">
             <RadioButton Style="{StaticResource ChoiceCard}" IsChecked="{Binding IsSelected, Mode=TwoWay}" AutomationProperties.Name="{Binding Title}">
                 <StackPanel>
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" />
-                        <Border Style="{StaticResource Badge}" Visibility="{Binding IsRecommended, Converter={StaticResource Visible}}">
-                            <TextBlock Text="Recommended" />
-                        </Border>
-                    </StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" />
+                            <Border Style="{StaticResource Badge}" Visibility="{Binding IsRecommended, Converter={StaticResource Visible}}">
+                                <TextBlock Text="{Binding RecommendedBadge}" />
+                            </Border>
+                        </StackPanel>
+                        <!-- The preset's own resolution, written to the settings with the others when the setup finishes -->
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="16,0,0,0" Cursor="Arrow"
+                                    Visibility="{Binding OffersResolution, Converter={StaticResource Visible}}">
+                            <!-- Dynamic's base: the preset it is near the ground -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,16,0" Visibility="{Binding OffersBase, Converter={StaticResource Visible}}">
+                                <TextBlock Text="Base" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <ComboBox Width="100" ItemsSource="{Binding Bases}" DisplayMemberPath="Name"
+                                          SelectedItem="{Binding Base, Mode=TwoWay}" AutomationProperties.Name="Dynamic base"
+                                          ToolTip="The quality near the ground. Higher up, the photos are held to Sharp's detail from 5,000 ft and Balanced's from 25,000 ft, where they are coarser than the base. Ultra or Sharp download less than Extra near the ground, for a slower connection." />
+                            </StackPanel>
+                            <TextBlock Text="Resolution" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <ComboBox Width="120" ItemsSource="{Binding Resolutions}" DisplayMemberPath="Label"
+                                      SelectedItem="{Binding Resolution, Mode=TwoWay}" AutomationProperties.Name="{Binding Title, StringFormat={}{0} resolution}"
+                                      ToolTip="How much this preset's textures are shrunk, from the same imagery: Medium halves them in most areas and keeps the airports sharp, Low halves them all. Less graphics memory, RAM and disk; less detail." />
+                        </StackPanel>
+                    </Grid>
                     <TextBlock Text="{Binding RecommendedReason}" Style="{StaticResource Caption}" Margin="0,2,0,0"
                                Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
                                Visibility="{Binding RecommendedReason, Converter={StaticResource Visible}}" />
+                    <!-- The other cards: that it also suits this PC, at which resolution, or why it does not -->
+                    <TextBlock Text="{Binding FitText}" Margin="0,2,0,0" TextWrapping="Wrap"
+                               Visibility="{Binding FitText, Converter={StaticResource Visible}}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource Caption}">
+                                <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Suits}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
                     <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                    <TextBlock Text="{Binding ResolutionText}" Style="{StaticResource Caption}" Margin="0,4,0,0" TextWrapping="Wrap"
+                               Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                               Visibility="{Binding ResolutionText, Converter={StaticResource Visible}}" />
                     <TextBlock Text="{Binding Details}" Style="{StaticResource Caption}" Margin="0,4,0,0" />
                     <TextBlock Text="{Binding MemoryText}" Style="{StaticResource Caption}" Margin="0,2,0,0" />
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0" Visibility="{Binding MemoryWarning, Converter={StaticResource Visible}}">

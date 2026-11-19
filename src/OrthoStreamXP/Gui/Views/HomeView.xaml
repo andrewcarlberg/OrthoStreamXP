@@ -421,12 +421,26 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Style="{StaticResource Icon}" Text="&#xE909;" Margin="0,0,14,0" />
                                     <StackPanel Grid.Column="1">
                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
                                         <TextBlock Text="{Binding Where}" Style="{StaticResource Caption}" />
                                     </StackPanel>
+                                    <CheckBox Grid.Column="2" Style="{StaticResource Switch}" IsChecked="{Binding IsMounted}" IsEnabled="{Binding CanSwitch}"
+                                              VerticalAlignment="Center" ToolTip="Mount this package (show it to X-Plane) at the next start"
+                                              ToolTipService.ShowOnDisabled="True"
+                                              AutomationProperties.Name="{Binding Name, StringFormat='Mount {0}'}" />
+                                    <Grid.Style>
+                                        <Style TargetType="Grid">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsMounted}" Value="False">
+                                                    <Setter Property="Opacity" Value="0.6" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Grid.Style>
                                 </Grid>
                             </Border>
                         </DataTemplate>

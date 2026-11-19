@@ -66,10 +66,6 @@ internal sealed record MountSettings
     public long CacheLimitBytes { get; init; }
     /// <summary>Seasonal colours for the photo textures.</summary>
     public SeasonOptions Seasons { get; init; } = SeasonOptions.Off;
-    /// <summary>Photo colours evened out between captures, by the low-zoom base.</summary>
-    public bool MatchColours { get; init; }
-    /// <summary>How much of the colour matching is made, 0 to 1.</summary>
-    public double MatchStrength { get; init; } = 1;
     /// <summary>The photos' exposure in percent, <see cref="OrthoStreamXP.Textures.Exposure.Min"/> to 100 (100: as they are).</summary>
     public double Exposure { get; init; } = OrthoStreamXP.Textures.Exposure.Full;
     /// <summary>Every open and read, and the camera, logged as CSV beside the log.</summary>
@@ -87,9 +83,12 @@ internal sealed record MountSettings
     {
         string cache = Path.TrimEndingDirectorySeparator(Path.GetFullPath(values.Required("cache")));
         int levelChange = values.Int("level-change", 0);
-        if (levelChange is < -4 or > 2) throw new SettingsException("level-change must be between -4 and 2");
-        // The texture size follows the level (Balanced 512 ... Extra 4096); an older settings file's texture-quality is ignored.
-        var texturePlan = new TexturePlan(levelChange);
+        if (Setup.QualityPreset.ForLevel(levelChange) is null)
+            throw new SettingsException("level-change must be one of the quality presets: -2 (Balanced), -1 (Sharp), 0 (Ultra) or 1 (Extra)");
+        Scenery.DynamicOptions? dynamic = ParseDynamic(values);
+        // The texture size follows the level (Balanced 2048/1024 ... Extra 8192), shrunk by the preset's resolution; an
+        // older settings file's texture-quality is ignored.
+        var texturePlan = new TexturePlan(levelChange) { Resolution = ParseResolution(values, Setup.QualityPreset.Current(levelChange, dynamic is not null)) };
         // One cache folder for every setup: each texture plan keeps its files in its own subfolder.
         string planCache = Path.Join(cache, texturePlan.FolderName);
         // The regions an earlier version installed take their new names before the packages are listed (nothing is mounted yet).
@@ -138,10 +137,6 @@ internal sealed record MountSettings
         SeasonOptions seasons = ParseSeasons(values);
         double cacheLimitGb = values.Double("cache-limit", 0);
         if (cacheLimitGb is < 0 or > 100_000) throw new SettingsException("cache-limit must be 0 (no limit) or a size in GB");
-        string matchValue = values.String("match-colours") ?? "off";
-        bool matchColours = ParseOnOff(matchValue) ?? throw new SettingsException($"match-colours must be on or off, not '{matchValue}'");
-        double matchStrength = values.Double("match-strength", 100);
-        if (matchStrength is < 0 or > 100) throw new SettingsException("match-strength must be between 0 and 100");
         double exposure = values.Double("exposure", OrthoStreamXP.Textures.Exposure.Full);
         if (exposure is < OrthoStreamXP.Textures.Exposure.Min or > OrthoStreamXP.Textures.Exposure.Full)
             throw new SettingsException($"exposure must be between {OrthoStreamXP.Textures.Exposure.Min} and {OrthoStreamXP.Textures.Exposure.Full}");
@@ -155,7 +150,6 @@ internal sealed record MountSettings
         bool skipPhotosAtNight = ParseOnOff(skipValue) ?? throw new SettingsException($"skip-photos-at-night must be on or off, not '{skipValue}'");
         double skipSunBelow = values.Double("skip-photos-sun-below", -Scenery.Daylight.DefaultDarkBelow);
         if (skipSunBelow is < 0 or > 18) throw new SettingsException("skip-photos-sun-below must be between 0 and 18 degrees");
-        Scenery.DynamicOptions? dynamic = ParseDynamic(values);
 
         if (downloadWorkers < 1) throw new SettingsException("download-workers must be at least 1");
         if (downloadTimeout is < 1 or > 120) throw new SettingsException("download-timeout must be between 1 and 120 seconds");
@@ -220,8 +214,6 @@ internal sealed record MountSettings
             BuildTiles = buildTiles,
             PagingK = pagingK,
             Seasons = seasons,
-            MatchColours = matchColours,
-            MatchStrength = matchStrength / 100,
             Exposure = exposure,
             CacheLimitBytes = (long)(cacheLimitGb * (1L << 30)),
             ReadLog = readLog,
@@ -230,7 +222,7 @@ internal sealed record MountSettings
     }
 
     /// <summary>
-    /// The packages to mount: source alone, or every package in base-packages (each with its own cache
+    /// The packages to mount: source alone, or every package in base-packages but those in skip-packages (each with its own cache
     /// subfolder), mounted at mountpoint or as X-Plane's Custom Scenery\&lt;name&gt;.
     /// </summary>
     /// <param name="customScenery">X-Plane's Custom Scenery folder when xplane is given.</param>
@@ -265,11 +257,20 @@ internal sealed record MountSettings
         {
             if (!Directory.Exists(basePackages)) throw new SettingsException($"Base packages folder does not exist: {basePackages}");
             plan = [];
+            SkippedPackages skipped = SkippedPackages.Parse(values.String(SkippedPackages.Setting));
+            bool anySkipped = false;
             foreach (string folder in SceneryPacks.FindPackages(basePackages, out notPackages))
             {
                 string name = Path.GetFileName(folder);
-                plan.Add(new PackagePlan(name, folder, Path.Join(cache, name), Path.Join(customScenery, name)));
+                if (skipped.Contains(name)) anySkipped = true;
+                else plan.Add(new PackagePlan(name, folder, Path.Join(cache, name), Path.Join(customScenery, name)));
             }
+            if (plan.Count == 0 && anySkipped)
+                throw new SettingsException($"Every scenery package in {basePackages} is switched off: switch one on under Scenery packages on the Home page");
+            // Overlays only draw roads, forests and buildings on a region's ground: on their own they show nothing to stream onto.
+            if (anySkipped && plan.All(p => SceneryPacks.IsOverlays(p.Name)))
+                throw new SettingsException($"Only overlay packages are switched on ({string.Join(", ", plan.Select(p => p.Name))}): " +
+                                            "switch on at least one region under Scenery packages on the Home page");
             if (plan.Count == 0)
                 throw new SettingsException($"No scenery packages (subfolders with an Earth nav data folder) in {basePackages}");
         }
@@ -314,6 +315,13 @@ internal sealed record MountSettings
     }
 
     /// <summary>Dynamic quality's steps, or null when it is off.</summary>
+    /// <summary>The resolution of the preset the settings are at (resolution-&lt;preset&gt;); Full for a level no preset has.</summary>
+    private static TextureResolution ParseResolution(SettingValues values, Setup.QualityPreset? preset)
+    {
+        if (preset is null || values.String(preset.ResolutionKey) is not { } value) return TextureResolution.Full;
+        return TextureResolution.Parse(value) ?? throw new SettingsException($"{preset.ResolutionKey} must be full, medium or low, not '{value}'");
+    }
+
     private static Scenery.DynamicOptions? ParseDynamic(SettingValues values)
     {
         string onValue = values.String("dynamic-quality") ?? "off";
