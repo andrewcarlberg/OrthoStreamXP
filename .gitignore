@@ -8,3 +8,4 @@ artifacts/
 TestResults/
 .vscode
 site/
+.claude

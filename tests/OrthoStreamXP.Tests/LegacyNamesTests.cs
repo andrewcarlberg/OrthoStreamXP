@@ -50,7 +50,6 @@ public sealed class LegacyNamesTests : IDisposable
         _tree.WriteText("cache/.photo-xp-logs/reads-20261027-153542.csv", "reads");
         _tree.WriteText("cache/.photo-xp-logs/flight-report.json", "{}");
         _tree.WriteText("cache/.photo-xp-logs/flights/flight-20261026-100000.json", "{}");
-        _tree.WriteText("cache/.photo-xp-logs/colour-match.json", "{}");
         _tree.WriteText("cache/.photo-xp-logs/area-usage.json", "{}");
         _tree.WriteText("cache/.photo-xp-logs/map/+51+017-1-v2.png", "png");
         _tree.WriteText("cache/.photo-xp-base/12/2241/1367.tile", "tile");
@@ -64,7 +63,6 @@ public sealed class LegacyNamesTests : IDisposable
         Assert.True(File.Exists(Path.Join(Logs, "reads-20261027-153542.csv")));
         Assert.True(File.Exists(Path.Join(History, "flight-report.json")));
         Assert.True(File.Exists(Path.Join(History, "flights", "flight-20261026-100000.json")));
-        Assert.True(File.Exists(Path.Join(History, "colour-match.json")));
         // The cache's own: renamed folders, and what describes it stays in it.
         Assert.True(File.Exists(_tree.PathOf("cache/.orthostreamxp-logs/area-usage.json")));
         Assert.True(File.Exists(_tree.PathOf("cache/.orthostreamxp-logs/map/+51+017-1-v2.png")));

@@ -71,6 +71,7 @@ internal sealed class MainViewModel : ObservableObject
         Cache = new CacheViewModel(this);
         Packages = new PackagesViewModel(Mount, Preferences, MeshHttp, MeshInstalls,
             () => SettingsDocument.Load(SettingsDocument.DefaultPath).Get("base-packages"));
+        Scenery = new SceneryViewModel(Mount, () => SettingsDocument.Load(SettingsDocument.DefaultPath).Get("xplane"));
         About = new AboutViewModel();
         Navigation =
         [
@@ -78,6 +79,7 @@ internal sealed class MainViewModel : ObservableObject
             new NavItem("Settings", "", Settings),
             new NavItem("Cache", "", Cache),
             new NavItem("Packages", "", Packages),
+            new NavItem("X-Plane Custom Scenery", "", Scenery),
             new NavItem("Log", "", LogPage),
             new NavItem("About", "", About),
         ];
@@ -102,6 +104,8 @@ internal sealed class MainViewModel : ObservableObject
     public HttpClient MeshHttp { get; } = PackagesViewModel.CreateHttpClient();
     /// <summary>One region install or delete at a time, from the Packages page or the setup.</summary>
     public InstallSlot MeshInstalls { get; } = new();
+    /// <summary>X-Plane's scenery_packs.ini, to switch packages on or off.</summary>
+    public SceneryViewModel Scenery { get; }
     public LogViewModel LogPage { get; }
     public AboutViewModel About { get; }
     public IReadOnlyList<NavItem> Navigation { get; }

@@ -3,8 +3,8 @@ using System.Buffers.Binary;
 namespace OrthoStreamXP.Textures;
 
 /// <summary>
-/// Recolouring of BC1 colour blocks by a lookup table over the 65,536 RGB565 colours, as X-Plane reads a DDS: the seasons,
-/// the exposure and the colour matching all change a block by its two colours, which changes every pixel of it.
+/// Recolouring of BC1 colour blocks by a lookup table over the 65,536 RGB565 colours, as X-Plane reads a DDS: the seasons
+/// and the exposure both change a block by its two colours, which changes every pixel of it.
 /// </summary>
 internal static class ColourTable
 {

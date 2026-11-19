@@ -28,16 +28,54 @@
             <RadioButton Style="{StaticResource ChoiceCard}"
                          IsChecked="{Binding IsSelected, Mode=TwoWay}" AutomationProperties.Name="{Binding Title}">
                 <StackPanel>
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" />
-                        <Border Style="{StaticResource Badge}" Visibility="{Binding IsRecommended, Converter={StaticResource Visible}}">
-                            <TextBlock Text="Recommended" />
-                        </Border>
-                    </StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" />
+                            <Border Style="{StaticResource Badge}" Visibility="{Binding IsRecommended, Converter={StaticResource Visible}}">
+                                <TextBlock Text="{Binding RecommendedBadge}" />
+                            </Border>
+                        </StackPanel>
+                        <!-- The preset's own resolution: kept for each preset, used while the settings are at it -->
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="16,0,0,0" Cursor="Arrow"
+                                    Visibility="{Binding OffersResolution, Converter={StaticResource Visible}}">
+                            <!-- Dynamic's base: the preset it is near the ground -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,16,0" Visibility="{Binding OffersBase, Converter={StaticResource Visible}}">
+                                <TextBlock Text="Base" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <ComboBox Width="100" ItemsSource="{Binding Bases}" DisplayMemberPath="Name"
+                                          SelectedItem="{Binding Base, Mode=TwoWay}" AutomationProperties.Name="Dynamic base"
+                                          ToolTip="The quality near the ground. Higher up, the photos are held to Sharp's detail from 5,000 ft and Balanced's from 25,000 ft, where they are coarser than the base. Ultra or Sharp download less than Extra near the ground, for a slower connection." />
+                            </StackPanel>
+                            <TextBlock Text="Resolution" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <ComboBox Width="120" ItemsSource="{Binding Resolutions}" DisplayMemberPath="Label"
+                                      SelectedItem="{Binding Resolution, Mode=TwoWay}" AutomationProperties.Name="{Binding Title, StringFormat={}{0} resolution}"
+                                      ToolTip="How much this preset's textures are shrunk, from the same imagery: Medium halves them in most areas and keeps the airports sharp, Low halves them all. Less graphics memory, RAM and disk; less detail." />
+                        </StackPanel>
+                    </Grid>
                     <TextBlock Text="{Binding RecommendedReason}" Style="{StaticResource Caption}" Margin="0,2,0,0"
                                Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
                                Visibility="{Binding RecommendedReason, Converter={StaticResource Visible}}" />
+                    <!-- The other cards: that it also suits this PC, at which resolution, or why it does not -->
+                    <TextBlock Text="{Binding FitText}" Margin="0,2,0,0" TextWrapping="Wrap"
+                               Visibility="{Binding FitText, Converter={StaticResource Visible}}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource Caption}">
+                                <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Suits}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
                     <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                    <TextBlock Text="{Binding ResolutionText}" Style="{StaticResource Caption}" Margin="0,4,0,0" TextWrapping="Wrap"
+                               Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                               Visibility="{Binding ResolutionText, Converter={StaticResource Visible}}" />
                     <TextBlock Text="{Binding Details}" Style="{StaticResource Caption}" Margin="0,6,0,0" />
                     <TextBlock Text="{Binding BestFor}" Style="{StaticResource Caption}" Margin="0,2,0,0" />
                     <TextBlock Text="{Binding MemoryText}" Style="{StaticResource Caption}" Margin="0,2,0,0" />
@@ -105,7 +143,7 @@
     </UserControl.Resources>
 
     <Grid>
-    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <ScrollViewer x:Name="Scroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="36,28,36,36" MaxWidth="900">
             <TextBlock Text="Settings" Style="{StaticResource PageTitle}" />
 
@@ -297,9 +335,12 @@
                     </StackPanel>
                 </TabItem>
                 <TabItem Header="Colours">
-                    <StackPanel Margin="0,4,0,0">
-                        <!-- Preview: a photo from the cache before and after the settings below (shown while streaming too) -->
-                        <Border Style="{StaticResource RowCard}" DataContext="{Binding ColourPreview}">
+                    <StackPanel Margin="0,-4,0,0">
+                        <!-- Preview: a photo from the cache before and after the settings below (shown while streaming too).
+                             It stays at the top while the settings scroll under it (StickyHeader), on the page's backdrop. -->
+                        <Border x:Name="PreviewPin" Padding="0,8">
+                        <Border x:Name="PreviewPinLayer">
+                        <Border Style="{StaticResource RowCard}" Margin="0" DataContext="{Binding ColourPreview}">
                             <StackPanel>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -338,48 +379,12 @@
                                 </TextBlock>
                             </StackPanel>
                         </Border>
+                        </Border>
+                        </Border>
 
                     <StackPanel IsEnabled="{Binding CanEdit}">
-                        <!-- Colour matching -->
-                        <TextBlock Text="Colour matching" Style="{StaticResource SectionTitle}" FontSize="16" Margin="2,28,0,2" />
-                        <TextBlock Style="{StaticResource Secondary}" Margin="2,0,0,10"
-                                   Text="Makes the photos fit together: neighbouring pictures from different days look less like patches." />
-                        <Border Style="{StaticResource RowCard}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
-                                    <TextBlock Text="Even out the colours between photos" />
-                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
-                                               Text="The photos are a patchwork of pictures taken on different days: next to each other, one can be grey and hazy and another bright and green. This moves each place towards the colours usual in its area, by its brightness and tint, so the patches stand out less. Fields keep their own colours, and a photo taken almost without colour stays muted. Your cache keeps the photos as downloaded: changing this never downloads them again." />
-                                </StackPanel>
-                                <CheckBox Grid.Column="1" Style="{StaticResource Switch}" IsChecked="{Binding MatchColoursOn}" Content="{Binding MatchColoursOnText}"
-                                          AutomationProperties.Name="Even out the colours between photos" />
-                            </Grid>
-                        </Border>
-                        <Border Style="{StaticResource RowCard}" IsEnabled="{Binding MatchColoursOn}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
-                                    <TextBlock Text="Strength" />
-                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
-                                               Text="How far each photo moves towards the colours usual in its area. 100 % is the full correction; less keeps more of each photo's own look." />
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                    <Slider Width="200" Minimum="0" Maximum="100" TickFrequency="10" IsSnapToTickEnabled="True" VerticalAlignment="Center"
-                                            Value="{Binding MatchStrength, Delay=400}" AutomationProperties.Name="Colour matching strength" />
-                                    <TextBlock Text="{Binding MatchStrengthText}" Style="{StaticResource SliderValue}" />
-                                </StackPanel>
-                            </Grid>
-                        </Border>
-
                         <!-- Seasons -->
-                        <TextBlock Text="Seasons" Style="{StaticResource SectionTitle}" FontSize="16" Margin="2,28,0,2" />
+                        <TextBlock Text="Seasons" Style="{StaticResource SectionTitle}" FontSize="16" Margin="2,24,0,2" />
                         <TextBlock Style="{StaticResource Secondary}" Margin="2,0,0,10"
                                    Text="Changes the colours of the vegetation to the season of your flight." />
                         <Border Style="{StaticResource RowCard}">
@@ -405,7 +410,8 @@
                                 </Grid.ColumnDefinitions>
                                 <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
                                     <TextBlock Text="Season" />
-                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" Text="Automatic follows the date of your flight in X-Plane; a new date shows from the next flight." />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Text="Automatic follows the date of your flight in X-Plane; a new date shows from the next flight. Satellite follows it too, but colours the grass and fields as green as NASA's satellite pictures of the last year show each place: coasts stay green in a mild winter and fields dry out in a dry summer. Trees keep the calendar. It downloads about 2 MB for each area of 500 km, once a year." />
                                 </StackPanel>
                                 <ComboBox Grid.Column="1" Width="300" VerticalAlignment="Center" ItemsSource="{Binding SeasonChoices}" DisplayMemberPath="Label"
                                           SelectedItem="{Binding Season}" AutomationProperties.Name="Season" />

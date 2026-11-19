@@ -26,7 +26,7 @@ public sealed class DownloadTests : IDisposable
     {
         var server = new FakeTileServer(status: _ => HttpStatusCode.NotFound);
         using var tiles = new TileSource("test", FakeTileServer.Template, 4, attempts: 4, handler: server);
-        await Assert.ThrowsAsync<IOException>(() => tiles.GetTileAsync(1, 2, 3, false, new TileStats()));
+        await Assert.ThrowsAsync<TileNotAvailableException>(() => tiles.GetTileAsync(1, 2, 3, false, new TileStats()));
         Assert.Single(server.Requests);
     }
 
@@ -37,6 +37,44 @@ public sealed class DownloadTests : IDisposable
         using var tiles = new TileSource("test", FakeTileServer.Template, 4, attempts: 3, handler: server);
         await Assert.ThrowsAsync<IOException>(() => tiles.GetTileAsync(1, 2, 3, false, new TileStats()));
         Assert.Equal(["t3.test", "t4.test", "t5.test"], server.Requests.Select(u => u.Host)); // (x + y + attempt) % 8
+    }
+
+    [Fact]
+    public async Task A_tile_no_provider_has_is_made_from_its_parent_at_hand()
+    {
+        // A 1024 px ZL16 texture from zoom 14: 4 x 4 tiles. One of them no provider has; its zoom 13 parent is in RAM.
+        var name = new TextureName(21904, 35824, "BI", 16);
+        int missingX = (35824 >> 2) + 1, missingY = (21904 >> 2) + 2;
+        var server = new FakeTileServer(statusOf: uri => uri.AbsolutePath == $"/14/{missingX}/{missingY}" ? HttpStatusCode.NotFound : HttpStatusCode.OK);
+        using var tiles = new TileSource("test", FakeTileServer.Template, 4, handler: server);
+        var builder = new TextureBuilder(tiles, 1);
+        await tiles.GetTileAsync(missingX >> 1, missingY >> 1, 13, false, new TileStats());
+
+        var stats = new TileStats();
+        var (rgb, size) = await builder.FetchRegionAsync(name, 14, 1024, new FetchTicket(FetchPriority.Warm), stats);
+
+        Assert.Equal((1024, 1), (size, stats.FromParents));
+        int at = ((2 * 256 + 128) * 1024 + 256 + 128) * 3; // the middle of the missing tile
+        Assert.Equal([40, 90, 160], rgb[at..(at + 3)]); // the parent's picture
+    }
+
+    [Fact]
+    public async Task A_missing_tile_without_a_parent_at_hand_or_a_network_failure_still_fails_the_build()
+    {
+        var name = new TextureName(21904, 35824, "BI", 16);
+        int x = 35824 >> 2, y = 21904 >> 2;
+        var missing = new FakeTileServer(statusOf: uri => uri.AbsolutePath == $"/14/{x}/{y}" ? HttpStatusCode.NotFound : HttpStatusCode.OK);
+        using (var tiles = new TileSource("test", FakeTileServer.Template, 4, handler: missing))
+            await Assert.ThrowsAsync<TileNotAvailableException>(() =>
+                new TextureBuilder(tiles, 1).FetchRegionAsync(name, 14, 1024, new FetchTicket(FetchPriority.Warm), new TileStats()));
+
+        // The parent is at hand, but the tile failed for the network: it is not patched, the texture is built again later.
+        var down = new FakeTileServer(statusOf: uri => uri.AbsolutePath == $"/14/{x}/{y}" ? HttpStatusCode.ServiceUnavailable : HttpStatusCode.OK);
+        using var flaky = new TileSource("test", FakeTileServer.Template, 4, attempts: 1, handler: down);
+        await flaky.GetTileAsync(x >> 1, y >> 1, 13, false, new TileStats());
+        IOException error = await Assert.ThrowsAsync<IOException>(() =>
+            new TextureBuilder(flaky, 1).FetchRegionAsync(name, 14, 1024, new FetchTicket(FetchPriority.Warm), new TileStats()));
+        Assert.IsNotType<TileNotAvailableException>(error);
     }
 
     [Fact]

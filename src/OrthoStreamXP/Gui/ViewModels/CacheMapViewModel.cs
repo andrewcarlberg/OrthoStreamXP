@@ -6,7 +6,7 @@ using OrthoStreamXP.Setup;
 
 namespace OrthoStreamXP.Gui;
 
-/// <summary>One area on the cache map: where it is drawn, its picture, and whether it is selected.</summary>
+/// <summary>One area on the cache map: where it is (in map units), its picture, and whether it is selected.</summary>
 internal sealed class AreaTile(CacheArea area, double left, double top, double width, double height, Action<AreaTile> toggled) : ObservableObject
 {
     private bool _selected;
@@ -50,26 +50,29 @@ internal sealed class AreaTile(CacheArea area, double left, double top, double w
     }
 
     internal static string QualityName(string setupFolder) =>
-        CacheInventory.ParseSetupName(setupFolder) is { } setup && QualityPreset.ForLevel(setup.Level) is { } preset ? preset.Name : setupFolder;
+        CacheInventory.ParseSetupName(setupFolder)?.PresetTitle ?? setupFolder;
 }
-
-/// <summary>A label at the edge of the cache map: a latitude or a longitude.</summary>
-internal sealed record MapLabel(string Text, double Left, double Top);
 
 /// <summary>
 /// The cache map on the Cache page: every cached 1° area where it is on the globe (longitudes narrowed by the cosine of
 /// the latitude, as on a map), as a small picture made from its own textures; areas are selected by clicking them and
-/// deleted together.
+/// deleted together. The map is laid out in map units (<see cref="Unit"/> a degree of latitude); the view zooms it.
 /// </summary>
 internal sealed class CacheMapViewModel : ObservableObject
 {
-    public const double MaxWidth = 820, MaxHeight = 440;
-    private const int PicturePixels = 48;
+    /// <summary>Map units a degree of latitude.</summary>
+    public const double Unit = 100;
+
+    /// <summary>Degrees of map around the areas, so the outer ones are not at the edge.</summary>
+    private const double Margin = 0.5;
+
+    private const int PicturePixels = 96;
     private readonly CacheViewModel _owner;
     private IReadOnlyList<AreaTile> _tiles = [];
-    private IReadOnlyList<MapLabel> _labels = [];
     private IReadOnlyList<CityLabel> _cities = [];
-    private double _width, _height;
+    private MapProjection? _projection;
+    private Setup.GeoBounds _bounds;
+    private double _width, _height, _zoom = 1, _placedZoom;
     private bool _confirming, _deleting;
     private int _version;
 
@@ -107,13 +110,14 @@ internal sealed class CacheMapViewModel : ObservableObject
         }
     }
 
-    public IReadOnlyList<MapLabel> Labels
+    /// <summary>Where places are on the map, for its latitude and longitude lines.</summary>
+    public MapProjection? Projection
     {
-        get => _labels;
-        private set => Set(ref _labels, value);
+        get => _projection;
+        private set => Set(ref _projection, value);
     }
 
-    /// <summary>City names over the map, largest first where they would crowd.</summary>
+    /// <summary>City names over the map, largest first where they would crowd; more of them as the map is zoomed in.</summary>
     public IReadOnlyList<CityLabel> CityLabels
     {
         get => _cities;
@@ -122,6 +126,19 @@ internal sealed class CacheMapViewModel : ObservableObject
 
     public bool HasAreas => Tiles.Count > 0;
 
+    /// <summary>The scale the map is shown at (screen pixels a map unit): the city names are placed for it.</summary>
+    public double Zoom
+    {
+        get => _zoom;
+        set
+        {
+            if (!(value > 0) || value == _zoom) return;
+            _zoom = value;
+            if (Math.Abs(Math.Log2(_zoom / _placedZoom)) >= 0.3) PlaceCities();
+        }
+    }
+
+    /// <summary>The map's size in map units.</summary>
     public double Width
     {
         get => _width;
@@ -155,30 +172,17 @@ internal sealed class CacheMapViewModel : ObservableObject
         Confirming = false;
         if (areas.Count == 0)
         {
-            (Tiles, Labels, CityLabels, Width, Height) = ([], [], [], 0, 0);
+            (Tiles, CityLabels, Projection, Width, Height) = ([], [], null, 0, 0);
             SelectionChanged();
             return;
         }
         int south = areas.Min(a => a.Name.Lat), north = areas.Max(a => a.Name.Lat) + 1;
         int west = areas.Min(a => a.Name.Lon), east = areas.Max(a => a.Name.Lon) + 1;
-        double squeeze = Math.Cos((south + north) / 2.0 * Math.PI / 180);
-        double cell = Math.Clamp(Math.Min(MaxWidth / ((east - west) * squeeze), MaxHeight / (north - south)), 6, 72);
-        double cellWidth = cell * squeeze;
-        const double margin = 34;
-        var tiles = areas.Select(a => new AreaTile(a, margin + (a.Name.Lon - west) * cellWidth, margin + (north - 1 - a.Name.Lat) * cell, cellWidth, cell, _ => SelectionChanged())).ToList();
-        // A label every few degrees, so they never crowd.
-        int step = Math.Max(1, (int)Math.Ceiling(28 / cell));
-        var labels = new List<MapLabel>();
-        for (int lat = south; lat < north; lat += step)
-            labels.Add(new MapLabel(FormattableString.Invariant($"{Math.Abs(lat)}°{(lat >= 0 ? 'N' : 'S')}"), 0, margin + (north - 1 - lat) * cell + cell / 2 - 8));
-        step = Math.Max(1, (int)Math.Ceiling(40 / cellWidth));
-        for (int lon = west; lon < east; lon += step)
-            labels.Add(new MapLabel(FormattableString.Invariant($"{Math.Abs(lon)}°{(lon >= 0 ? 'E' : 'W')}"), margin + (lon - west) * cellWidth, 8));
-        (Tiles, Labels, Width, Height) = (tiles, labels, margin + (east - west) * cellWidth + 4, margin + (north - south) * cell + 4);
-        // Names over the map: about 6.5 px a letter at 11 px, on a small tag.
-        CityLabels = Cities.Place(new Setup.GeoBounds(south, west, north, east),
-            (lat, lon) => new System.Windows.Point(margin + (lon - west) * cellWidth, margin + (north - lat) * cell),
-            name => new System.Windows.Size(name.Length * 6.5 + 8, 16), Width, Height, max: 60);
+        var map = new MapProjection(west - Margin, north + Margin, Unit, Math.Cos((south + north) / 2.0 * Math.PI / 180));
+        var tiles = areas.Select(a => new AreaTile(a, map.X(a.Name.Lon), map.Y(a.Name.Lat + 1), map.DegreeWidth, map.Unit, _ => SelectionChanged())).ToList();
+        _bounds = new Setup.GeoBounds(south - Margin, west - Margin, north + Margin, east + Margin);
+        (Tiles, Projection, Width, Height) = (tiles, map, map.X(_bounds.East), map.Y(_bounds.South));
+        PlaceCities();
         SelectionChanged();
         _ = PaintAsync(tiles, cache, version);
     }
@@ -203,9 +207,27 @@ internal sealed class CacheMapViewModel : ObservableObject
 
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, ImageSource> Pictures = new();
 
+    /// <summary>
+    /// Names the cities for the zoom shown: a label keeps its size on screen (about 6.5 px a letter at 11 px, on a small
+    /// tag), so it covers less of the map as the map is zoomed in, and more fit; about one a 90 px square of the map.
+    /// </summary>
+    private void PlaceCities()
+    {
+        _placedZoom = _zoom;
+        if (Projection is not { } map)
+        {
+            CityLabels = [];
+            return;
+        }
+        double zoom = _zoom;
+        int max = (int)Math.Clamp(Width * Height * zoom * zoom / 8000, 20, 300);
+        CityLabels = Cities.Place(_bounds, (lat, lon) => new System.Windows.Point(map.X(lon), map.Y(lat)),
+            name => new System.Windows.Size(Math.Max(1, (name.Length * 6.5 + 8) / zoom), Math.Max(1, 16 / zoom)), Width, Height, max);
+    }
+
     private static ImageSource? Picture(string cache, string folder, CacheArea area)
     {
-        string name = $"{area.Name}-{area.Bytes}-v2.png";
+        string name = $"{area.Name}-{area.Bytes}-v3.png";
         if (Pictures.TryGetValue(name, out ImageSource? known)) return known;
         string file = Path.Join(folder, name);
         try

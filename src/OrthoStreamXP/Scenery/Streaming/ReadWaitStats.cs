@@ -32,7 +32,10 @@ internal sealed class ReadWaitStats
             if (list.Count < MaxNeededSamples) list.Add(needed.TotalSeconds);
     }
 
-    /// <summary>The waits at a flight's start and after it. The Far band never waits, so only Near and Middle count.</summary>
+    /// <summary>
+    /// The waits at a flight's start and after it, for the tuning. Only Near and Middle count: a Far read waits only
+    /// for its low-zoom base tile at a start (a fixed bound, nothing the tuning sets), recorded with starting false.
+    /// </summary>
     public (long StartWaits, long StartTimedOut, IReadOnlyList<double> StartNeeded, long FlightWaits, long FlightTimedOut, IReadOnlyList<double> FlightNeeded) Snapshot()
     {
         long waits = Read(_waits, Band.Near) + Read(_waits, Band.Middle);

@@ -49,6 +49,39 @@ public sealed class SceneryPacksTests : IDisposable
     }
 
     [Fact]
+    public void The_packages_added_at_the_start_are_reported_and_removed_again_and_the_listed_ones_stay()
+    {
+        _tree.WriteText("X-Plane 12/Custom Scenery/scenery_packs.ini",
+            "I\r\n1000 Version\r\nSCENERY\r\n\r\nSCENERY_PACK Custom Scenery/KSEA/\r\nSCENERY_PACK_DISABLED Custom Scenery/XPME_Africa/\r\n");
+        string file = Path.Join(CustomScenery, "scenery_packs.ini");
+        string before = File.ReadAllText(file);
+
+        Assert.True(SceneryPacks.MoveToEnd(CustomScenery, ["XPME_Africa", "XPME_Europe"], out IReadOnlyList<string> added));
+        Assert.Equal(["XPME_Europe"], added);
+
+        Assert.True(SceneryPacks.RemoveEntries(CustomScenery, added));
+        Assert.Equal(before, File.ReadAllText(file));
+        Assert.Equal(before, File.ReadAllText(file + ".bak"));
+        Assert.False(SceneryPacks.RemoveEntries(CustomScenery, added), "already gone: left alone");
+    }
+
+    [Fact]
+    public void Nothing_is_added_when_every_package_is_listed()
+    {
+        _tree.WriteText("X-Plane 12/Custom Scenery/scenery_packs.ini", "I\n1000 Version\nSCENERY\nSCENERY_PACK Custom Scenery/XPME_Europe/\n");
+        Assert.False(SceneryPacks.MoveToEnd(CustomScenery, ["XPME_Europe"], out IReadOnlyList<string> added));
+        Assert.Empty(added);
+    }
+
+    [Fact]
+    public void Removing_from_a_missing_file_changes_nothing()
+    {
+        Directory.CreateDirectory(CustomScenery);
+        Assert.False(SceneryPacks.RemoveEntries(CustomScenery, ["XPME_Europe"]));
+        Assert.False(File.Exists(Path.Join(CustomScenery, "scenery_packs.ini")));
+    }
+
+    [Fact]
     public void An_entry_with_the_full_path_is_recognised()
     {
         string fullPath = Path.Join(CustomScenery, "XPME_Europe").Replace('\\', '/') + "/";
@@ -120,6 +153,62 @@ public sealed class SceneryPacksTests : IDisposable
                 new PackagePlan("XPME_Africa", _tree.PathOf("BP/XPME_Africa"), _tree.PathOf("cache/XPME_Africa"), Path.Join(CustomScenery, "XPME_Africa")),
                 new PackagePlan("XPME_Europe", _tree.PathOf("BP/XPME_Europe"), _tree.PathOf("cache/XPME_Europe"), Path.Join(CustomScenery, "XPME_Europe")),
             ], plan);
+    }
+
+    [Fact]
+    public void A_switched_off_package_is_not_mounted()
+    {
+        Directory.CreateDirectory(CustomScenery);
+        Package("BP/XPME_Europe");
+        Package("BP/XPME_Africa");
+        Package("BP/XPME_Asia");
+        SettingValues args = TestSettings.Of($"base-packages = {_tree.PathOf("BP")}", $"xplane = {_tree.PathOf("X-Plane 12")}", "cache = unused",
+            "skip-packages = xpme_africa, XPME_Asia ,");
+
+        var plan = MountSettings.PlanPackages(args, _tree.PathOf("cache"), out _, out _);
+
+        Assert.Equal(["XPME_Europe"], plan.Select(p => p.Name));
+    }
+
+    [Fact]
+    public void Every_package_switched_off_is_explained()
+    {
+        Directory.CreateDirectory(CustomScenery);
+        Package("BP/XPME_Europe");
+        SettingValues args = TestSettings.Of($"base-packages = {_tree.PathOf("BP")}", $"xplane = {_tree.PathOf("X-Plane 12")}", "cache = unused",
+            "skip-packages = XPME_Europe");
+
+        var error = Assert.Throws<SettingsException>(() => MountSettings.PlanPackages(args, _tree.PathOf("cache"), out _, out _));
+        Assert.Contains("is switched off", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Overlays_alone_are_not_enough_one_region_must_stay_on()
+    {
+        Directory.CreateDirectory(CustomScenery);
+        Package("BP/XPME_Europe");
+        Package("BP/XPME_Overlays");
+        Package("BP/OrthoStream_Overlays");
+        SettingValues OnlyOverlays() => TestSettings.Of($"base-packages = {_tree.PathOf("BP")}", $"xplane = {_tree.PathOf("X-Plane 12")}", "cache = unused",
+            "skip-packages = XPME_Europe");
+        SettingValues RegionAndOverlays() => TestSettings.Of($"base-packages = {_tree.PathOf("BP")}", $"xplane = {_tree.PathOf("X-Plane 12")}", "cache = unused",
+            "skip-packages = OrthoStream_Overlays");
+
+        var error = Assert.Throws<SettingsException>(() => MountSettings.PlanPackages(OnlyOverlays(), _tree.PathOf("cache"), out _, out _));
+        Assert.Contains("switch on at least one region", error.Message, StringComparison.Ordinal);
+        Assert.Contains("OrthoStream_Overlays, XPME_Overlays", error.Message, StringComparison.Ordinal);
+
+        Assert.Equal(["XPME_Europe", "XPME_Overlays"], MountSettings.PlanPackages(RegionAndOverlays(), _tree.PathOf("cache"), out _, out _).Select(p => p.Name));
+    }
+
+    [Fact]
+    public void Switching_packages_off_and_on_writes_the_setting_and_removes_it_when_none_is_left_out()
+    {
+        SkippedPackages skipped = SkippedPackages.Parse(null).With("XPME_Europe", skipped: true).With("XPME_Africa", skipped: true);
+        Assert.Equal("XPME_Africa, XPME_Europe", skipped.ToValue());
+        Assert.True(SkippedPackages.Parse(skipped.ToValue()).Contains("xpme_europe"));
+        Assert.Equal("XPME_Africa", skipped.With("xpme_europe", skipped: false).ToValue());
+        Assert.Null(skipped.With("XPME_Europe", skipped: false).With("XPME_Africa", skipped: false).ToValue());
     }
 
     [Fact]

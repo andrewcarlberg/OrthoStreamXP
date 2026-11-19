@@ -54,6 +54,19 @@ public sealed class SeasonsTests : IDisposable
 
     private static readonly SeasonState Winter = SeasonModel.For(SeasonChoice.Winter), Autumn = SeasonModel.For(SeasonChoice.Autumn);
 
+    /// <summary>A season's colours alone as a lookup table (the photos' table adds the contrast and the exposure).</summary>
+    private static ushort[] SeasonTable(SeasonState season)
+    {
+        var table = new ushort[65536];
+        for (int c = 0; c < table.Length; c++)
+        {
+            var (r, g, b) = ColourTable.Decode565(c);
+            var (r2, g2, b2) = Seasons.Recolor(r, g, b, season);
+            table[c] = (ushort)ColourTable.Encode565(r2, g2, b2);
+        }
+        return table;
+    }
+
     private static double Hue((double R, double G, double B) c)
     {
         double max = Math.Max(c.R, Math.Max(c.G, c.B)), min = Math.Min(c.R, Math.Min(c.G, c.B)), d = max - min;
@@ -117,7 +130,7 @@ public sealed class SeasonsTests : IDisposable
         byte[] dds = Texture();
         byte[] before = Dds.DecodeLevel(dds.AsSpan(Dds.HeaderSize), 16, 16);
 
-        ColourTable.Apply(dds, 0, 8, Seasons.TableFor(Winter)!);
+        ColourTable.Apply(dds, 0, 8, SeasonTable(Winter));
 
         byte[] after = Dds.DecodeLevel(dds.AsSpan(Dds.HeaderSize), 16, 16);
         for (int block = Dds.HeaderSize; block < dds.Length; block += 8)
@@ -138,7 +151,7 @@ public sealed class SeasonsTests : IDisposable
     public void A_block_cut_by_the_end_of_a_read_stays_as_it_is_so_split_reads_always_match()
     {
         byte[] whole = Texture(), split = (byte[])whole.Clone(), original = (byte[])whole.Clone();
-        ushort[] table = Seasons.TableFor(Winter)!;
+        ushort[] table = SeasonTable(Winter);
 
         ColourTable.Apply(whole, 0, 8, table);
         // Two reads that cut the second block in half: it stays as made, both halves.
@@ -171,13 +184,15 @@ public sealed class SeasonsTests : IDisposable
     }
 
     [Fact]
-    public void A_texture_takes_the_table_of_its_season_and_none_in_summer()
+    public void A_texture_takes_the_table_of_its_season_and_summers_in_summer()
     {
         Assert.True(TextureName.TryParseFile("21840_35584_BI16.dds", out TextureName name));
+        ushort[] summer = PhotoColours.TableFor(SeasonState.Summer, Exposure.Full);
 
-        Assert.Same(Seasons.TableFor(Winter), new SeasonClock(new SeasonOptions(true, 1, SeasonChoice.Winter), null).TableFor(name));
-        Assert.Null(new SeasonClock(new SeasonOptions(true, 1, SeasonChoice.Summer), null).TableFor(name));
-        Assert.Null(new SeasonClock(new SeasonOptions(true, 0, SeasonChoice.Winter), null).TableFor(name));
+        Assert.Same(PhotoColours.TableFor(Winter, Exposure.Full), new SeasonClock(new SeasonOptions(true, 1, SeasonChoice.Winter), null).TableFor(name));
+        Assert.NotSame(summer, new SeasonClock(new SeasonOptions(true, 1, SeasonChoice.Winter), null).TableFor(name));
+        Assert.Same(summer, new SeasonClock(new SeasonOptions(true, 1, SeasonChoice.Summer), null).TableFor(name));
+        Assert.Same(summer, new SeasonClock(new SeasonOptions(true, 0, SeasonChoice.Winter), null).TableFor(name));
     }
 
     [Fact]

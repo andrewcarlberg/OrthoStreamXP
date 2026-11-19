@@ -7,9 +7,10 @@ namespace OrthoStreamXP.Scenery;
 /// <summary>
 /// Serves photo DDS textures the way X-Plane reads them: the header at once, then each read's byte range mapped to
 /// mip levels, answered with the best data at that moment. Real data is fetched at exactly the zoom the level
-/// needs (level 4 of a ZL16 texture is one ZL12 tile, not 256 ZL16 tiles). How long a read may wait depends on its
+/// needs (level 3 of a ZL16 texture is four ZL13 tiles, not 256 ZL16 tiles). How long a read may wait depends on its
 /// band: next to the aircraft it waits for real imagery (long at the start of a flight, which X-Plane will not
-/// read again while the aircraft is parked), in the middle distance briefly, and far away not at all. A read
+/// read again while the aircraft is parked), in the middle distance briefly, and far away not at all (except, while
+/// a flight starts, a few seconds for the low-zoom base tile when nothing else of the place is at hand). A read
 /// that cannot wait gets a stand-in, stretched from the best coarser imagery at hand (the low-zoom base, or one
 /// flat colour when there is nothing), and the real data is fetched behind it for X-Plane's next read.
 /// <para>
@@ -32,6 +33,11 @@ internal sealed class TextureStreamer : IDisposable
 {
     /// <summary>X-Plane wanting level 0 or 1 means the texture is next to the camera.</summary>
     public const int NearMips = 1;
+    /// <summary>
+    /// How long a far read waits for its low-zoom base tile while a flight starts when there is nothing to stretch
+    /// instead (a new cache): a base build is a few tiles and well under a second, so this bounds only a slow connection.
+    /// </summary>
+    public const double FarStartWaitSeconds = 10;
     private static readonly TimeSpan RetryAfter = TimeSpan.FromSeconds(15);
     /// <summary>The colour of a level when nothing of the place is at hand: a muted green-brown, like most land from afar.</summary>
     private static readonly (byte R, byte G, byte B) FlatColor = (96, 102, 80);
@@ -99,10 +105,16 @@ internal sealed class TextureStreamer : IDisposable
     }
 
     /// <summary>
-    /// The memory a build of a <paramref name="sizePx"/> level holds while its tiles arrive: the picture and its resize
-    /// and encode buffers, about 1.5 x size² x 3 bytes (1.2 MB at 512 px, 19 MB at 2048 px, 75 MB at 4096).
+    /// The memory a build of a <paramref name="sizePx"/> level holds while its tiles arrive and it is encoded, about
+    /// 4.6 x size² bytes (1.2 MB at 512 px, 18 MB at 2048 px, 74 MB at 4096, 295 MB at 8192): the picture (3 bytes a
+    /// pixel), the two pictures its smaller levels take turns in (<see cref="Dds.EncodeChain"/>: a quarter and a
+    /// sixteenth of its pixels) and the BC1 levels it makes (half a byte a pixel, and a third more for the smaller levels).
     /// </summary>
-    public static long BuildWeight(int sizePx) => (long)sizePx * sizePx * 9 / 2;
+    public static long BuildWeight(int sizePx)
+    {
+        long pixels = (long)sizePx * sizePx;
+        return pixels * 3 + pixels * 3 * 5 / 16 + DdsLayout.For(sizePx).ChainLength(0);
+    }
 
     public PagingModel Model => _model;
 
@@ -223,11 +235,14 @@ internal sealed class TextureStreamer : IDisposable
             int target = Math.Max(mip, finest);
             if (target < realFrom)
             {
+                // A far read while a flight starts with nothing of the place at hand would get one flat colour, and X-Plane
+                // loads the whole area at once and reads few of those textures again: it waits briefly for its base tile.
+                bool flatAtStart = band == Band.Far && _view.Starting && !HasCoarserStored(t);
                 Task<bool> build = StartBuild(t, Math.Min(target, t.BaseMip), band switch
                 {
                     Band.Near => FetchPriority.NearRead,
                     Band.Middle => FetchPriority.ForRead(mip),
-                    _ => FetchPriority.Background,
+                    _ => flatAtStart ? FetchPriority.ForRead(mip) : FetchPriority.Background,
                 }, byRead: true);
                 // While a flight starts the aircraft is parked and X-Plane reads none of these textures again for a
                 // while: a stand-in then stays blurry, so near and middle reads alike may wait near-wait.
@@ -235,7 +250,7 @@ internal sealed class TextureStreamer : IDisposable
                 double wait = band switch
                 {
                     Band.Near or Band.Middle => starting ? _options.NearWaitSeconds : _options.MaxWaitSeconds,
-                    _ => 0,
+                    _ => flatAtStart ? FarStartWaitSeconds : 0,
                 };
                 if (wait > 0 && !build.IsCompleted)
                 {
@@ -244,7 +259,9 @@ internal sealed class TextureStreamer : IDisposable
                     TimeSpan waited = Stopwatch.GetElapsedTime(waitStarted);
                     waitedMs = waited.TotalMilliseconds;
                     // A wait for a held-back level says nothing about how long the photos take: the tuning never sees it.
-                    if (heldBack == HeldBack.No) NoteWait(band!.Value, starting, waitStarted, waited, done, build);
+                    // Nor does a far wait: it is for the base tile, not the photos, and its bound is fixed.
+                    if (band == Band.Far) _waitStats.Record(Band.Far, starting: false, waited, done);
+                    else if (heldBack == HeldBack.No) NoteWait(band!.Value, starting, waitStarted, waited, done, build);
                 }
             }
         }
@@ -452,7 +469,7 @@ internal sealed class TextureStreamer : IDisposable
             if (k == 0 && _roots.CachedFile(t.Path) is { } file)
                 chain = ReadAfterHeader(file);
             else if (t.RealFromBase && _builder.TryStoredRegion(t.Name, t.ZoomFor(k)) is { } region)
-                chain = Dds.EncodeChain(_builder.ResizeTo(region.Rgb, region.Size, t.Layout.SizeOf(k)), t.Layout, k, 1);
+                chain = Dds.EncodeChain(_builder.PictureAt(region.Rgb, region.Size, t.Layout.SizeOf(k), t.Name), t.Layout, k, 1);
             else if (k > 0 && k < t.Layout.Levels && !t.RealFromBase)
                 chain = File.ReadAllBytes(ChainPath(t, k));
         }
@@ -529,6 +546,18 @@ internal sealed class TextureStreamer : IDisposable
             if (_builder.TryStoredRegion(t.Name, zoom) is { } region)
                 return region;
         return null;
+    }
+
+    /// <summary>
+    /// Whether the low-zoom base holds a coarser tile a stand-in can be stretched from (the zooms <see cref="StandInImage"/>
+    /// looks at): a cheap check of the store, nothing is read.
+    /// </summary>
+    private bool HasCoarserStored(StreamedTexture t)
+    {
+        for (int zoom = Math.Min(t.ZoomFor(t.BaseMip), _baseZoom) - 1; zoom >= Math.Max(1, t.Name.Zoom - 12); zoom--)
+            if (_builder.StoreHasRegion(t.Name, zoom))
+                return true;
+        return false;
     }
 
     private static void FillFlat(Span<byte> output, long fileOffset)
@@ -642,10 +671,7 @@ internal sealed class TextureStreamer : IDisposable
         if (k >= t.BaseMip && _builder.Source.Store is not null) return; // made again from the stored tile
         if (k == 0)
         {
-            byte[] file = new byte[t.Layout.Length];
-            t.Layout.Header.CopyTo(file);
-            chain.CopyTo(file, Dds.HeaderSize);
-            AtomicFile.Write(_roots.CachePath(t.Path), file);
+            AtomicFile.Write(_roots.CachePath(t.Path), t.Layout.Header, chain);
         }
         else if (k < t.BaseMip)
         {
@@ -692,35 +718,6 @@ internal sealed class TextureStreamer : IDisposable
         }
     }
 
-    /// <summary>
-    /// Where the texture's picture comes from now, and its version: the photo once it has real data that is not the
-    /// low-zoom base's (its stand-ins are stretched from it too), else the base.
-    /// </summary>
-    public (PictureSource Source, DateTime Version) Picture(StreamedTexture t)
-    {
-        lock (t.Gate)
-        {
-            Probe(t);
-            return (t.RealFrom < t.Layout.Levels && !t.RealFromBase ? PictureSource.Photo : PictureSource.Base, t.Version);
-        }
-    }
-
-    /// <summary>
-    /// The photo's level nearest <paramref name="size"/> pixels (its first real level when that is coarser), decoded to
-    /// RGB, or null when the picture is not the photo.
-    /// </summary>
-    public (byte[] Rgb, int Size)? PhotoSample(StreamedTexture t, int size)
-    {
-        lock (t.Gate)
-        {
-            Probe(t);
-            if (t.RealFrom >= t.Layout.Levels || t.RealFromBase || EnsureChain(t) is not { } chain) return null;
-            int mip = Math.Max(t.RealFrom, Math.Clamp((int)Math.Round(Math.Log2((double)t.Layout.Size / size)), 0, t.Layout.Levels - 1));
-            int levelSize = t.Layout.SizeOf(mip), start = (int)(t.Layout.Offset(mip) - t.Layout.Offset(t.ChainFrom));
-            return (Dds.DecodeLevel(chain.AsSpan(start, t.Layout.LengthOf(mip)), levelSize, levelSize), levelSize);
-        }
-    }
-
     // ---------------------------------------------------------------- RAM
 
     /// <summary>Drops the RAM copies of the least recently read textures when over budget; they are on disk or made again.</summary>
@@ -759,16 +756,17 @@ internal sealed class TextureStreamer : IDisposable
 
     /// <summary>
     /// The detail X-Plane holds of each texture it wanted within <paramref name="within"/>: the pixels across of the
-    /// finest level it read, which is what that texture takes of the graphics memory.
+    /// finest level it read, which is what that texture takes of the graphics memory, and whether it is an airport's.
     /// </summary>
-    public IEnumerable<int> HeldDetail(TimeSpan within)
+    public IEnumerable<HeldTexture> HeldDetail(TimeSpan within)
     {
         foreach (StreamedTexture t in _textures.Values)
         {
             int finest;
             long at;
             lock (t.Gate) (finest, at) = (t.FinestWanted, t.WantedAt);
-            if (finest != StreamedTexture.Unknown && Stopwatch.GetElapsedTime(at) < within) yield return Math.Max(1, t.Layout.Size >> finest);
+            if (finest != StreamedTexture.Unknown && Stopwatch.GetElapsedTime(at) < within)
+                yield return new HeldTexture(Math.Max(1, t.Layout.Size >> finest), TextureResolution.IsAirport(t.Name.Zoom));
         }
     }
 
@@ -799,7 +797,7 @@ internal sealed class TextureStreamer : IDisposable
             : $"; paging k: model {_model.K:F0}{(fit is null ? ", not measured yet" : fitted)}";
         return $"Streaming summary: {_textures.Count} textures, {Interlocked.Read(ref _headerChunks)} header chunks; X-Plane's reads of levels: {reads}, " +
                $"{RealReads} real{Share(RealReads)}, {Interlocked.Read(ref _standIn)} with stand-ins{Share(Interlocked.Read(ref _standIn))}, " +
-               $"{Interlocked.Read(ref _flat)} flat{Share(Interlocked.Read(ref _flat))}; waited: {_waitStats.Describe(Band.Near)}, {_waitStats.Describe(Band.Middle)}; " +
+               $"{Interlocked.Read(ref _flat)} flat{Share(Interlocked.Read(ref _flat))}; waited: {_waitStats.Describe(Band.Near)}, {_waitStats.Describe(Band.Middle)}, {_waitStats.Describe(Band.Far)}; " +
                $"builds: {Interlocked.Read(ref _readBuilds)} for reads, {Interlocked.Read(ref _aheadBuilds)} ahead ({Interlocked.Read(ref _warmRequests)} asked), " +
                $"{Interlocked.Read(ref _fullBuilds)} at full detail, {Interlocked.Read(ref _failedBuilds)} failed" +
                (_nightPause is null ? "" : $", {Interlocked.Read(ref _nightReads)} reads at night kept to the low-zoom base") +

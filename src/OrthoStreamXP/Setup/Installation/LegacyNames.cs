@@ -21,7 +21,7 @@ internal static class LegacyNames
     private static readonly string[] SettingsCompanions = [".ini", ".tuned.json", ".connection.json"];
     private static readonly string[] CacheFolders = ["logs", "base", "landcover"];
     /// <summary>The files of the history that sessions left in the cache's logs folder.</summary>
-    private static readonly string[] HistoryFiles = ["flight-report.json", "flight-review.json", "graphics-memory.json", "colour-match.json", "sim-date.txt"];
+    private static readonly string[] HistoryFiles = ["flight-report.json", "flight-review.json", "graphics-memory.json", "sim-date.txt"];
 
     /// <summary>Moves the settings files from <paramref name="fromFolder"/> (under either name) to <paramref name="settingsPath"/> and beside it.</summary>
     public static void MoveSettings(string fromFolder, string settingsPath)

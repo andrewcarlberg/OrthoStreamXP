@@ -66,7 +66,15 @@ public sealed class WindowSettingsTests : IDisposable
         string path = _tree.WriteText("old.ini", "cache = C:\\c\nlevel-change = 0\ntexture-quality = high\n");
         SettingValues args = SettingsDocument.Load(path).Parse(); // no "unknown setting" error
         Assert.Equal("high", args.String("texture-quality"));
-        Assert.Equal(4096, new OrthoStreamXP.Textures.TexturePlan(args.Int("level-change", 0)).SizeFor(16)); // Ultra's size, whatever it says
+        Assert.Equal(8192, new OrthoStreamXP.Textures.TexturePlan(args.Int("level-change", 0)).SizeFor(16)); // Ultra's size, whatever it says
+    }
+
+    [Fact]
+    public void An_older_settings_file_with_the_removed_colour_matching_still_loads()
+    {
+        string path = _tree.WriteText("old.ini", "cache = C:\\c\nmatch-colours = on\nmatch-strength = 60\n");
+        SettingValues args = SettingsDocument.Load(path).Parse(); // no "unknown setting" error
+        Assert.Equal("on", args.String("match-colours"));
     }
 
     [Theory]
@@ -94,6 +102,32 @@ public sealed class WindowSettingsTests : IDisposable
         Assert.Equal(0, settings.GetInt("level-change"));
         Assert.Equal(160, settings.GetInt("download-workers"));
         Assert.Equal(8, settings.GetInt("dds-build-workers"));
+    }
+
+    [Fact]
+    public void Choosing_a_preset_rewrites_the_preset_comment_of_a_new_settings_file()
+    {
+        SettingsDocument settings = SettingsDocument.CreateNew(_tree.PathOf("orthostreamxp.ini"), @"C:\X-Plane 12", @"C:\Packages", @"D:\cache", QualityPreset.Sharp);
+        int line = settings.Lines.ToList().FindIndex(l => l.StartsWith("level-change", StringComparison.Ordinal));
+        Assert.Equal("# quality preset: Sharp; the level also sets the texture size (4096 px)", settings.Lines[line - 1]);
+
+        QualityPreset.Ultra.ApplyTo(settings);
+        Assert.Equal("# quality preset: Ultra; the level also sets the texture size (8192 px)", settings.Lines[line - 1]);
+
+        QualityPreset.DynamicSharp.ApplyTo(settings);
+        Assert.Equal("# quality preset: Dynamic from Sharp; the level also sets the texture size (4096 px)", settings.Lines[line - 1]);
+        Assert.Single(settings.Lines, l => l.StartsWith(QualityPreset.LevelCommentPrefix, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Choosing_a_preset_keeps_a_comment_of_your_own_above_the_level()
+    {
+        var settings = SettingsDocument.FromText("x.ini", "# my own note\nlevel-change = -2\n");
+
+        QualityPreset.Ultra.ApplyTo(settings);
+
+        Assert.Equal("# my own note", settings.Lines[0]);
+        Assert.Equal(0, settings.GetInt("level-change"));
     }
 
     [Theory]

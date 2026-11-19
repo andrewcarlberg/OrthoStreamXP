@@ -25,7 +25,7 @@ public sealed class TerrainDefinitionsTests : IDisposable
     public void Base_definition_matches_AutoOrtho()
     {
         Assert.Equal(
-            "A\n800\nTERRAIN\n\nLOAD_CENTER 74.50816 18.85254 2613 4096\nBASE_TEX_NOWRAP ../textures/11952_36192_BI16.dds\n" +
+            "A\n800\nTERRAIN\n\nLOAD_CENTER 74.50816 18.85254 2613 8192\nBASE_TEX_NOWRAP ../textures/11952_36192_BI16.dds\n" +
             "DECAL_LIB lib/g10/decals/maquify_2_green_key.dcl\nNO_ALPHA\n",
             Generate("11952_36192_BI16.ter"));
     }
@@ -121,7 +121,7 @@ public sealed class TerrainDefinitionsTests : IDisposable
     public void At_0_percent_a_generated_definition_has_no_decal_library()
     {
         Assert.Equal(
-            "A\n800\nTERRAIN\n\nLOAD_CENTER 74.50816 18.85254 2613 4096\nBASE_TEX_NOWRAP ../textures/11952_36192_BI16.dds\nNO_ALPHA\n",
+            "A\n800\nTERRAIN\n\nLOAD_CENTER 74.50816 18.85254 2613 8192\nBASE_TEX_NOWRAP ../textures/11952_36192_BI16.dds\nNO_ALPHA\n",
             Resolve(WithDecals(0), "11952_36192_BI16.ter"));
     }
 
@@ -204,7 +204,7 @@ public sealed class TerrainDefinitionsTests : IDisposable
     public void With_night_lights_a_land_tile_names_its_night_texture_right_after_its_photo()
     {
         Assert.Equal(
-            "A\n800\nTERRAIN\n\nLOAD_CENTER 74.50816 18.85254 2613 4096\nBASE_TEX_NOWRAP ../textures/11952_36192_BI16.dds\n" +
+            "A\n800\nTERRAIN\n\nLOAD_CENTER 74.50816 18.85254 2613 8192\nBASE_TEX_NOWRAP ../textures/11952_36192_BI16.dds\n" +
             $"LIT_TEX_NOWRAP ../{NightTextures.Folder}/11952_36192_BI16_LIT.dds\n" +
             "DECAL_LIB lib/g10/decals/maquify_2_green_key.dcl\nNO_ALPHA\n",
             Resolve(WithNightLights(), "11952_36192_BI16.ter"));

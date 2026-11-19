@@ -12,6 +12,7 @@ When something goes wrong, Home shows a notice that says what happened, usually 
 | **WinFsp is needed** / **WinFsp could not show the scenery** | Click **Get WinFsp**, install (or repair) WinFsp, restart your computer, then click **Start** again. If you installed WinFsp or OrthoStreamXP and have not restarted Windows since, restart it first. |
 | **A scenery folder is in the way** | X-Plane's `Custom Scenery` folder already has a folder with the same name as one of your packages. Usually another streaming tool still shows it there: close that tool before you start OrthoStreamXP and check your scenery_packs.ini file and click **Start** again. If it is a real folder, move or rename it. **Open Custom Scenery** opens the folder. |
 | **Your scenery packages were not found** | The packages folder is missing or empty. Click **Open settings** and choose the parent folder that holds your packages |
+| **A setting needs attention**, saying every scenery package is switched off, or only overlay packages are | All your regions are switched off under **Scenery packages** on Home. Switch at least one region back on there, then click **Start** again (see [Flying › Leaving a package out](flying.md#leaving-a-package-out)). |
 | **X-Plane was not found** | The X-Plane folder has no `Custom Scenery` folder. Choose the folder X-Plane is installed in. |
 | **A folder cannot be written** | Choose a cache folder you can write to, for example one in your user folder. |
 | **A setting needs attention** | A value in the settings file is not valid. The notice names it; click **Open settings** to fix it. |
@@ -20,7 +21,6 @@ When something goes wrong, Home shows a notice that says what happened, usually 
 | **Restart OrthoStreamXP to use your new settings** | The settings file changed while OrthoStreamXP was running. Click **Restart now** to use the new values. |
 | **Downloads are failing** | Check your internet connection. OrthoStreamXP keeps trying; **Open log** shows the details. |
 | **Blurry ground for a while** | A new area takes a few minutes the first time. If it happens often, try a lower preset or apply the tuning suggestions after your flight (see [Flying](flying.md#tuning-suggestions)). |
-| **Patchy colours between photos** | Turn on **Even out the colours between photos** in [Settings › Colours](settings.md#colours). |
 | **Photos look too bright next to X-Plane's own scenery** | Lower **Exposure** in [Settings › Colours](settings.md#exposure). |
 | **Noisy, speckled ground up close** | X-Plane's grass and dirt detail is drawn over the photos. Set **Ground detail** to **Off** (or lower it) in [Settings › Quality](settings.md#ground-detail). |
 
@@ -28,7 +28,7 @@ When something goes wrong, Home shows a notice that says what happened, usually 
 
 ![The Log page](images/log.png)
 
-The Log page lists the main steps and any problems of this session. Type in **Search the log** to filter the list. **Open log folder** opens the full, detailed logs in `%LOCALAPPDATA%\OrthoStreamXP\logs`.
+The Log page lists the main steps and any problems of this session; it stays empty until you start OrthoStreamXP on the Home page. Type in **Search the log** to filter the list. **Open log folder** opens the full, detailed logs in `%LOCALAPPDATA%\OrthoStreamXP\logs`.
 
 ## The About page
 

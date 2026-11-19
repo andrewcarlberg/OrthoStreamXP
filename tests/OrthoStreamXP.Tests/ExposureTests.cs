@@ -4,47 +4,37 @@ using OrthoStreamXP.Textures;
 
 namespace OrthoStreamXP.Tests;
 
-/// <summary>The exposure: a lookup table that darkens the photos in linear light, its setting, and the preview of the colour settings.</summary>
+/// <summary>The exposure: darkening the photos in linear light, its setting, and the preview of the colour settings.</summary>
 public sealed class ExposureTests : IDisposable
 {
     private readonly TempTree _tree = new();
 
     public void Dispose() => _tree.Dispose();
 
-    private static (double R, double G, double B) Through(ushort[] table, double r, double g, double b) =>
-        ColourTable.Decode565(table[ColourTable.Encode565(r, g, b)]);
-
     [Fact]
-    public void Full_exposure_changes_nothing_and_less_is_clamped_to_one_stop()
+    public void An_exposure_is_a_whole_percent_from_one_stop_darker_to_full()
     {
-        Assert.Null(Exposure.TableFor(100));
-        Assert.Null(Exposure.TableFor(120));
-        Assert.Same(Exposure.TableFor(Exposure.Min), Exposure.TableFor(10));
+        Assert.Equal(Exposure.Full, Exposure.Percent(120));
+        Assert.Equal(Exposure.Min, Exposure.Percent(10));
+        Assert.Equal(85, Exposure.Percent(84.6));
     }
 
     [Fact]
     public void Half_the_light_is_one_stop_darker_in_linear_light_and_black_stays_black()
     {
-        ushort[] half = Exposure.TableFor(50)!;
-
-        var white = Through(half, 255, 255, 255);
-        double expected = Exposure.ToSrgb(0.5) * 255; // about 188, not 128: the shadows are not crushed
-        Assert.InRange(white.R, expected - 9, expected + 9);
-        Assert.InRange(white.G, expected - 5, expected + 5);
-        Assert.Equal((0.0, 0.0, 0.0), Through(half, 0, 0, 0));
+        Assert.Equal(Exposure.ToSrgb(0.5) * 255, Exposure.Darken(255, 0.5), 6); // about 188, not 128: the shadows are not crushed
+        Assert.Equal(0, Exposure.Darken(0, 0.5), 6);
+        Assert.Equal(255, Exposure.Darken(255, 1), 6);
     }
 
     [Fact]
-    public void Less_exposure_is_darker_for_every_colour_and_keeps_its_order()
+    public void Less_exposure_is_darker_for_every_value_and_keeps_its_order()
     {
-        ushort[] darker = Exposure.TableFor(80)!, darkest = Exposure.TableFor(50)!;
-        foreach (var (r, g, b) in new[] { (60.0, 100.0, 50.0), (150.0, 60.0, 50.0), (200.0, 190.0, 170.0), (120.0, 120.0, 118.0) })
+        for (int v = 1; v < 256; v++)
         {
-            var original = ColourTable.Decode565(ColourTable.Encode565(r, g, b));
-            var a = Through(darker, r, g, b);
-            var c = Through(darkest, r, g, b);
-            Assert.True(a.R <= original.R && a.G <= original.G && a.B <= original.B, $"80 % of {(r, g, b)}: {a}");
-            Assert.True(c.R <= a.R && c.G <= a.G && c.B <= a.B, $"50 % of {(r, g, b)}: {c} brighter than 80 %: {a}");
+            Assert.True(Exposure.Darken(v, 0.8) < v, $"80 % of {v}");
+            Assert.True(Exposure.Darken(v, 0.5) < Exposure.Darken(v, 0.8), $"50 % of {v}");
+            Assert.True(Exposure.Darken(v, 0.5) > Exposure.Darken(v - 1, 0.5), $"50 % of {v} keeps its order");
         }
     }
 
@@ -79,32 +69,30 @@ public sealed class ExposureTests : IDisposable
     private static double Brightness(byte[] rgb) => rgb.Average(v => (double)v);
 
     [Fact]
-    public void The_preview_offers_the_finished_photos_and_shows_them_unchanged_without_settings()
+    public void The_preview_offers_the_finished_photos_and_shows_the_contrast_without_settings()
     {
-        using var preview = new ColourPreview(Cache(), _tree.PathOf("history"));
+        var preview = new ColourPreview(Cache(), _tree.PathOf("history"));
 
         PreviewPhoto photo = Assert.Single(preview.FindPhotos(TestContext.Current.CancellationToken));
-        PreviewPicture picture = preview.Render(photo, new ColourAdjustments(false, 1, SeasonOptions.Off, 100))!;
+        PreviewPicture picture = preview.Render(photo, new ColourAdjustments(SeasonOptions.Off, 100))!;
 
         Assert.Equal(256, picture.Size);
-        Assert.Equal(picture.Before, picture.After);
-        Assert.Contains("No colour change", Assert.Single(picture.Notes), StringComparison.Ordinal);
+        // The contrast is always on: the summer green (darker than mid-grey) comes out darker.
+        Assert.True(Brightness(picture.After) < Brightness(picture.Before), "the contrast changes nothing");
+        Assert.Contains("Contrast 60 %", Assert.Single(picture.Notes), StringComparison.Ordinal);
     }
 
     [Fact]
     public void The_preview_shows_the_season_and_the_exposure_as_X_Plane_gets_them()
     {
-        using var preview = new ColourPreview(Cache(), _tree.PathOf("history"));
+        var preview = new ColourPreview(Cache(), _tree.PathOf("history"));
         PreviewPhoto photo = preview.FindPhotos(TestContext.Current.CancellationToken)[0];
 
-        PreviewPicture darker = preview.Render(photo, new ColourAdjustments(false, 1, SeasonOptions.Off, 50))!;
-        PreviewPicture winter = preview.Render(photo, new ColourAdjustments(false, 1, new SeasonOptions(true, 1, SeasonChoice.Winter), 100))!;
-        PreviewPicture matched = preview.Render(photo, new ColourAdjustments(true, 1, SeasonOptions.Off, 100))!;
+        PreviewPicture darker = preview.Render(photo, new ColourAdjustments(SeasonOptions.Off, 50))!;
+        PreviewPicture winter = preview.Render(photo, new ColourAdjustments(new SeasonOptions(true, 1, SeasonChoice.Winter), 100))!;
 
         Assert.True(Brightness(darker.After) < Brightness(darker.Before) - 20);
         Assert.NotEqual(winter.Before, winter.After);
         Assert.True(winter.After[0] > winter.After[1], "winter: the green turns brown"); // red above green
-        Assert.Equal(matched.Before, matched.After); // no low-zoom base in this cache: nothing to match against
-        Assert.Contains(matched.Notes, n => n.Contains("low-zoom base", StringComparison.Ordinal));
     }
 }

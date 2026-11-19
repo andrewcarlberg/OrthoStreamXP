@@ -4,44 +4,73 @@ using System.Text.RegularExpressions;
 namespace OrthoStreamXP.Textures;
 
 /// <summary>
-/// How each texture is built from the level-change setting. The zoom depends on the texture's own zoom: ZL18 textures (around
-/// airports) use 18 + level, ZL16 textures one level finer up to level 0, 16 + (level + 1), so at the same setting the
-/// wide ZL16 areas are not left much softer than the airports; above level 0 they use 16 + level (Extra +1: zoom 17,
-/// as Ultra, while the airports get zoom 19). Other zooms use zoom + level.
+/// How each texture is built from the level-change setting. Each level downloads fixed zooms (<see cref="Zooms"/>):
+/// one for the wide areas' textures (ZL16, and ZL17 in finer packages) and one for the airports' (ZL18 and finer):
+/// Balanced 15/16, Sharp 16/17, Ultra 17/18, Extra 17/19, whatever the zoom in the package's file names.
 /// <para>
-/// The size follows the level too: 4096 px at level 0 and above, half per level below (Balanced -2: 1024, Sharp -1:
-/// 2048, Ultra 0 and Extra +1: 4096), the same for ZL16 and ZL18. Below level 0 ZL16 textures download one zoom more
-/// detail than that, and at level +1 ZL18 ones do, shrunk as it arrives: the finer imagery gives a cleaner picture than
-/// the size alone would.
+/// The size is the detail the tiles hold at <see cref="TextureResolution.Full"/>: 4096 px when the download zoom is the
+/// file's own (16 x 16 tiles), twice as much one zoom finer, half per zoom coarser. ZL16 textures: Balanced 2048, Sharp
+/// 4096, Ultra and Extra 8192; ZL18 textures: Balanced 1024, Sharp 2048, Ultra 4096, Extra 8192; a ZL17/ZL19 package's
+/// textures are half of those sizes, from the same imagery. A lower <see cref="Resolution"/> halves the textures from the
+/// same tiles (Ultra at Medium: ZL16 4096 px from zoom 17, ZL18 still 4096 px).
 /// </para>
 /// </summary>
+/// <param name="LevelChange">One of the <see cref="Zooms"/> levels: the presets' -2..1 (the settings accept only these), or -3/-4 (quick test builds).</param>
 /// <param name="Limit">A size limit instead of the level's own (tests of the streaming engine at full detail).</param>
 internal sealed partial record TexturePlan(int LevelChange, int? Limit = null)
 {
-    /// <summary>Finer than the downloaded 4096 px detail at the file zoom; BuildAsync accepts up to +3.</summary>
+    /// <summary>Levels finer than the file zoom; BuildAsync accepts up to +3.</summary>
     public const int MaxLevel = 3;
 
-    /// <summary>The largest texture at this level.</summary>
-    public int SizeLimit => Limit ?? TextureSizing.LimitFor(LevelChange);
+    /// <summary>
+    /// The zooms each level downloads: (the areas' textures, below ZL18; the airports', ZL18 and finer). -3 and -4 are no
+    /// preset and the settings refuse them: they are coarse, quick builds for the tests.
+    /// </summary>
+    private static readonly Dictionary<int, (int Area, int Airport)> Zooms = new()
+    {
+        [-4] = (13, 14),
+        [-3] = (14, 15),
+        [-2] = (15, 16), // Balanced
+        [-1] = (16, 17), // Sharp
+        [0] = (17, 18),  // Ultra
+        [1] = (17, 19),  // Extra
+    };
 
-    /// <summary>The level change applied to a texture of <paramref name="fileZoom"/>.</summary>
-    public int LevelFor(int fileZoom) => Math.Clamp(LevelChange + (fileZoom == 16 && LevelChange < 1 ? 1 : 0), -4, MaxLevel);
+    public int LevelChange { get; } = Zooms.ContainsKey(LevelChange) ? LevelChange
+        : throw new ArgumentOutOfRangeException(nameof(LevelChange), LevelChange, "No texture zooms for this level");
+
+    /// <summary>Whether a level has its texture zooms (the presets' -2..1, and the tests' -3/-4).</summary>
+    public static bool IsKnownLevel(int levelChange) => Zooms.ContainsKey(levelChange);
+
+    /// <summary>How much the textures are shrunk from the detail their tiles hold (the preset's resolution setting).</summary>
+    public TextureResolution Resolution { get; init; } = TextureResolution.Full;
+
+    /// <summary>The largest texture built: <see cref="TextureSizing.MaxSize"/>, or the explicit limit (tests).</summary>
+    public int SizeLimit => Limit ?? TextureSizing.MaxSize;
+
+    /// <summary>The zooms finer (positive) or coarser than its own that a texture of <paramref name="fileZoom"/> is downloaded at.</summary>
+    public int LevelFor(int fileZoom)
+    {
+        var (area, airport) = Zooms[LevelChange];
+        return Math.Clamp((TextureResolution.IsAirport(fileZoom) ? airport : area) - fileZoom, -4, MaxLevel);
+    }
 
     /// <summary>The zoom its tiles are downloaded at.</summary>
     public int FetchZoom(int fileZoom) => fileZoom + LevelFor(fileZoom);
 
-    /// <summary>Its size in pixels: the downloaded detail, capped by the level's limit, never enlarged.</summary>
-    public int SizeFor(int fileZoom) => Math.Min(TextureSizing.DownloadedDetail(LevelFor(fileZoom)), SizeLimit);
+    /// <summary>Its size in pixels: the downloaded detail shrunk by the resolution, capped by the size limit, never enlarged.</summary>
+    public int SizeFor(int fileZoom) => Math.Min(Resolution.SizeOf(TextureSizing.DownloadedDetail(LevelFor(fileZoom)), fileZoom), SizeLimit);
 
     /// <summary>
     /// A texture's name in the cache: the row and column of its top-left tile at the zoom it is downloaded at, and that
     /// zoom, such as 87520_143440_BI18 → 43760_71720_PX17 at level -1. The package's code is left out: it never chose
-    /// the imagery. ZL17 keeps its package name: it is downloaded at the zoom of ZL16 (one level finer), where a ZL16
-    /// texture twice as wide could start at the same tile.
+    /// the imagery. Only ZL16 and ZL18 textures get such a name; the others keep their package name: they are downloaded at
+    /// the zoom of ZL16 or ZL18 (ZL17 at the areas', ZL19 at the airports'), where a texture of a different width could
+    /// start at the same tile.
     /// </summary>
     public string CacheStem(TextureName name)
     {
-        if (name.Zoom == 17) return name.Stem;
+        if (name.Zoom is not (16 or 18)) return name.Stem;
         int level = LevelFor(name.Zoom);
         return FormattableString.Invariant($"{Shift(name.Row, level)}_{Shift(name.Col, level)}_{TextureName.CacheCode}{FetchZoom(name.Zoom)}");
     }
@@ -55,9 +84,9 @@ internal sealed partial record TexturePlan(int LevelChange, int? Limit = null)
             || !int.TryParse(m.Groups[2].Value, CultureInfo.InvariantCulture, out int col)
             || !int.TryParse(m.Groups[3].Value, CultureInfo.InvariantCulture, out int fetchZoom))
             return null;
-        for (int zoom = 4; zoom <= 22; zoom++)
+        foreach (int zoom in PackageZooms)
         {
-            if (zoom == 17 || FetchZoom(zoom) != fetchZoom) continue;
+            if (FetchZoom(zoom) != fetchZoom) continue;
             int level = LevelFor(zoom);
             if (TextureName.TryCreate(Shift(row, -level), Shift(col, -level), TextureName.CacheCode, zoom, out TextureName name)
                 && CacheStem(name) == stem)
@@ -89,18 +118,16 @@ internal sealed partial record TexturePlan(int LevelChange, int? Limit = null)
 
 internal static class TextureSizing
 {
-    /// <summary>The largest texture built.</summary>
-    public const int MaxSize = 4096;
+    /// <summary>The largest texture built: a ZL16 texture from zoom 17, or a ZL18 one from zoom 19, at full detail.</summary>
+    public const int MaxSize = 8192;
+
+    /// <summary>Pixels across a texture at its file's own zoom: 16 x 16 tiles of 256 px.</summary>
+    public const int FileZoomDetail = 4096;
 
     /// <summary>
-    /// Pixels of detail level-change downloads for one texture: 4096 at the file's zoom (16 x 16 tiles of 256 px),
-    /// half as much per level below. Above level 0 the detail is finer than 4096, so it is shrunk to 4096.
+    /// Pixels of detail a level change downloads for one texture: 4096 at the file's zoom, twice as much per level
+    /// finer, half per level coarser, up to <see cref="MaxSize"/>.
     /// </summary>
-    public static int DownloadedDetail(int levelChange) => levelChange >= 0 ? MaxSize : MaxSize >> -levelChange;
-
-    /// <summary>
-    /// The largest texture at a level: 4096 px at level 0 and above, half per level below. That is the detail a ZL18
-    /// texture downloads, so ZL16 textures, fetched one level finer, are shrunk to the same size.
-    /// </summary>
-    public static int LimitFor(int levelChange) => DownloadedDetail(levelChange);
+    public static int DownloadedDetail(int levelChange) =>
+        levelChange >= 0 ? FileZoomDetail << Math.Min(levelChange, 1) : FileZoomDetail >> -levelChange;
 }

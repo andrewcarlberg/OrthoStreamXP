@@ -17,7 +17,8 @@ internal sealed class FakeTileServer(Func<int, HttpStatusCode>? status = null, F
 {
     public const string Template = "http://t{s}.test/{z}/{x}/{y}";
 
-    private static readonly byte[] Tile = EncodeTile();
+    /// <summary>The tile every request gets: one colour, PNG.</summary>
+    public static readonly byte[] Tile = EncodeTile();
     public static readonly byte[] TransparentTile = EncodeTile(SKColors.Transparent);
 
     public ConcurrentQueue<Uri> Requests { get; } = new();

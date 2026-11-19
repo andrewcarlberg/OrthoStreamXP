@@ -129,10 +129,21 @@ public sealed class ImageryProviderTests
         var server = new FakeTileServer(status: _ => HttpStatusCode.NotFound);
         using var tiles = new TileSource([new("first", FakeTileServer.Template), new("second", Fallback)], 4, handler: server);
 
-        IOException error = await Assert.ThrowsAsync<IOException>(() => tiles.GetTileAsync(1, 2, 3, false, new TileStats()));
+        IOException error = await Assert.ThrowsAsync<TileNotAvailableException>(() => tiles.GetTileAsync(1, 2, 3, false, new TileStats()));
 
         Assert.Contains("first:", error.Message, StringComparison.Ordinal);
         Assert.Contains("second:", error.Message, StringComparison.Ordinal);
         Assert.Equal(2, server.Requests.Count);
+    }
+
+    [Fact]
+    public async Task A_tile_one_provider_lacks_and_the_other_cannot_reach_is_a_network_failure()
+    {
+        var server = new FakeTileServer(statusOf: uri => uri.Host == "fallback.test" ? HttpStatusCode.ServiceUnavailable : HttpStatusCode.NotFound);
+        using var tiles = new TileSource([new("first", FakeTileServer.Template), new("second", Fallback)], 4, attempts: 1, handler: server);
+
+        IOException error = await Assert.ThrowsAsync<IOException>(() => tiles.GetTileAsync(1, 2, 3, false, new TileStats()));
+
+        Assert.IsNotType<TileNotAvailableException>(error); // asked again later, it may come
     }
 }

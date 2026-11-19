@@ -24,7 +24,7 @@ internal sealed class SettingsViewModel : ObservableObject, IPage
     public SettingsViewModel(MainViewModel main)
     {
         _main = main;
-        Presets = [.. QualityPreset.Choices.Select(p => new PresetOption(p, ChoosePreset))];
+        Presets = [.. QualityPreset.Choices.Select(p => new PresetOption(p, ChoosePreset, SaveResolution, ChooseDynamicBase))];
         Providers =
         [
             new Choice("Bing, then Esri where Bing has no picture (recommended)", "bing,esri"),
@@ -93,7 +93,7 @@ internal sealed class SettingsViewModel : ObservableObject, IPage
     public ColourPreviewViewModel ColourPreview { get; }
 
     /// <summary>The colour settings as the page shows them, for the preview.</summary>
-    private ColourAdjustments ColourSettings => new(MatchColoursOn, MatchStrength / 100,
+    private ColourAdjustments ColourSettings => new(
         new Scenery.SeasonOptions(SeasonsOn, SeasonStrength / 100, SeasonModel.Names.GetValueOrDefault(Season?.Value ?? "auto", SeasonChoice.Auto)), Exposure);
 
     public IReadOnlyList<PresetOption> Presets { get; }
@@ -148,7 +148,7 @@ internal sealed class SettingsViewModel : ObservableObject, IPage
     /// <summary>Reset would change something: a tuned value, or a setting edited in the file.</summary>
     public bool CanReset => CurrentPreset is { } preset && TunedSettings.DiffersFromDefaults(_document, preset);
 
-    public string ResetQuestion => $"Put every setting back to the {CurrentPreset?.Name} defaults and forget what was tuned for it? The folders, the picture source and Downloads at once stay as they are.";
+    public string ResetQuestion => $"Put every setting back to the {CurrentPreset?.Name} defaults and forget what was tuned for it? The folders, the picture source, the resolutions and Downloads at once stay as they are.";
 
     public bool ConfirmingReset
     {
@@ -197,6 +197,7 @@ internal sealed class SettingsViewModel : ObservableObject, IPage
     public IReadOnlyList<Choice> SeasonChoices { get; } =
     [
         new Choice("Automatic: X-Plane's date and the place", "auto"),
+        new Choice("Satellite: grass and fields as they really were", "satellite"),
         new Choice("Early spring", "early-spring"),
         new Choice("Spring", "spring"),
         new Choice("Summer (the pictures as they are)", "summer"),
@@ -205,35 +206,6 @@ internal sealed class SettingsViewModel : ObservableObject, IPage
         new Choice("Late autumn", "late-autumn"),
         new Choice("Winter, without snow", "winter"),
     ];
-
-    public bool MatchColoursOn
-    {
-        get => _document.GetBool("match-colours") == true;
-        set
-        {
-            Save("match-colours", value ? "on" : "off");
-            Raise();
-            Raise(nameof(MatchColoursOnText));
-            ColourPreview.Refresh();
-        }
-    }
-
-    public string MatchColoursOnText => MatchColoursOn ? "On" : "Off";
-
-    /// <summary>The colour matching's strength in percent, for the slider; saved as a whole number.</summary>
-    public double MatchStrength
-    {
-        get => _document.GetDouble("match-strength") ?? 100;
-        set
-        {
-            Save("match-strength", Math.Clamp((int)Math.Round(value), 0, 100).ToString(CultureInfo.InvariantCulture));
-            Raise();
-            Raise(nameof(MatchStrengthText));
-            ColourPreview.Refresh();
-        }
-    }
-
-    public string MatchStrengthText => $"{MatchStrength:0} %";
 
     public bool SeasonsOn
     {
@@ -422,7 +394,7 @@ internal sealed class SettingsViewModel : ObservableObject, IPage
     {
         get
         {
-            int size = new TexturePlan(_document.GetInt("level-change") ?? 0).SizeFor(16);
+            int size = QualityPreset.PlanIn(_document).SizeFor(16);
             return $"Each new area takes up to about {CacheInventory.FormatBytes(3000L * size * size * 2 / 3)} at this texture size.";
         }
     }
@@ -502,7 +474,13 @@ internal sealed class SettingsViewModel : ObservableObject, IPage
         _loading = false;
         int level = _document.GetInt("level-change") ?? 0;
         QualityPreset? current = CurrentPreset;
-        foreach (PresetOption option in Presets) option.Show(option.Preset == current);
+        QualityPreset dynamic = QualityPreset.DynamicIn(_document);
+        foreach (PresetOption option in Presets)
+        {
+            option.ShowBase(dynamic);
+            option.Show(option.Preset == current);
+            option.ShowResolution(option.Preset.ResolutionIn(_document));
+        }
         CustomLevelNote = QualityPreset.ForLevel(level) is null
             ? $"Your settings file uses level-change {level}, which is not one of these. Choosing one replaces it."
             : null;
@@ -512,7 +490,7 @@ internal sealed class SettingsViewModel : ObservableObject, IPage
         foreach (string name in new[]
                  {
                      nameof(Provider), nameof(DownloadWorkers), nameof(DownloadWorkersText), nameof(FilePath), nameof(CacheEstimate),
-                     nameof(MatchColoursOn), nameof(MatchColoursOnText), nameof(MatchStrength), nameof(MatchStrengthText), nameof(SeasonsOn), nameof(SeasonsOnText), nameof(Season), nameof(SeasonStrength), nameof(SeasonStrengthText), nameof(Exposure), nameof(ExposureText),
+                     nameof(SeasonsOn), nameof(SeasonsOnText), nameof(Season), nameof(SeasonStrength), nameof(SeasonStrengthText), nameof(Exposure), nameof(ExposureText),
                      nameof(GroundDetail), nameof(GroundDetailText), nameof(NightLightsOn), nameof(NightLightsOnText), nameof(SkipPhotosAtNight), nameof(SkipPhotosAtNightText),
                      nameof(TunedRows), nameof(TuningText), nameof(CanReset), nameof(ResetQuestion),
                  })
@@ -528,6 +506,24 @@ internal sealed class SettingsViewModel : ObservableObject, IPage
         foreach (PresetOption option in Presets) option.Show(option.Preset == preset);
         CustomLevelNote = null;
         Reload();
+    }
+
+    /// <summary>
+    /// Dynamic's base changed on its card: chosen at once while the settings are at Dynamic (its level and that
+    /// preset's values, with what was tuned for it), otherwise kept for when Dynamic is chosen.
+    /// </summary>
+    private void ChooseDynamicBase(QualityPreset dynamic)
+    {
+        if (CurrentPreset is { IsDynamic: true }) ChoosePreset(dynamic);
+        else Save(QualityPreset.DynamicBaseKey, dynamic.DynamicBase!.Name.ToLowerInvariant());
+    }
+
+    /// <summary>A preset card's resolution changed: kept for that preset, used whenever the settings are at it.</summary>
+    private void SaveResolution(QualityPreset preset, TextureResolution resolution)
+    {
+        Save(preset.ResolutionKey, resolution.Value);
+        Raise(nameof(CacheEstimate));
+        Raise(nameof(CacheStatus));
     }
 
     private void ResetToDefaults()

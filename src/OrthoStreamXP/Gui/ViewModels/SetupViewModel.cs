@@ -60,7 +60,16 @@ internal sealed class SetupViewModel : ObservableObject
         XPlaneOptions = [.. SystemCheck.FindXPlaneFolders().Select(f => new FolderOption(f, "X-Plane found here", ChooseXPlane))];
         // Which packages to use is the person's own choice: nothing is searched for, only the folder chosen before is offered.
         PackageOptions = [];
-        Presets = [.. QualityPreset.Choices.Select(p => new PresetOption(p, preset => Preset = preset))];
+        // Each card keeps its own resolution, and Dynamic's its base, until the setup finishes and writes them all;
+        // a base changed while Dynamic is chosen chooses Dynamic from it.
+        Presets = [.. QualityPreset.Choices.Select(p => new PresetOption(p, preset => Preset = preset, (_, _) => Raise(nameof(Summary)),
+            dynamic => { if (Preset.IsDynamic) Preset = dynamic; }))];
+        QualityPreset dynamic = QualityPreset.DynamicIn(existing);
+        foreach (PresetOption option in Presets)
+        {
+            option.ShowBase(dynamic);
+            option.ShowResolution(option.Preset.ResolutionIn(existing));
+        }
         // Re-running the setup starts from the current settings; a first setup suggests the cache beside the packages.
         _cacheChosen = existing.Get("cache") is not null;
         _cache = existing.Get("cache") ?? SystemCheck.SuggestedCacheFolder(null);
@@ -68,9 +77,11 @@ internal sealed class SetupViewModel : ObservableObject
         Select(PackageOptions, existing.Get("base-packages"), ChoosePackages, null);
         PresetMemory.Load(existing.Get("cache"));
         foreach (PresetOption option in Presets) option.RefreshMemory();
-        QualityPreset recommended = PresetMemory.Recommended.Preset;
-        Preset = QualityPreset.Current(existing.GetInt("level-change") ?? recommended.Level, existing.GetBool(QualityPreset.DynamicQualityKey) == true)
-                 ?? recommended;
+        // A first setup starts at the recommendation, resolution and all; a rerun at what the settings have.
+        if (existing.GetInt("level-change") is { } level)
+            Preset = QualityPreset.Current(level, existing.GetBool(QualityPreset.DynamicQualityKey) == true) ?? PresetMemory.Recommended.Preset;
+        else
+            ChooseRecommended();
         IsRerun = existing.Get("cache") is not null;
         ConnectionTest = new ConnectionTestViewModel(
             () => existing.Get("texture-provider") ?? "bing,esri",
@@ -81,7 +92,7 @@ internal sealed class SetupViewModel : ObservableObject
                 // The recommendation follows the measured speed, and is chosen for the person (they may pick another).
                 PresetMemory.Load(_cache);
                 foreach (PresetOption option in Presets) option.RefreshMemory();
-                Preset = PresetMemory.Recommended.Preset;
+                ChooseRecommended();
             });
 
         Back = new RelayCommand(() => Step--, () => Step > 0);
@@ -232,7 +243,18 @@ internal sealed class SetupViewModel : ObservableObject
             _preset = value;
             foreach (PresetOption option in Presets) option.Show(option.Preset == value);
             Raise();
+            Raise(nameof(Summary));
         }
+    }
+
+    /// <summary>The chosen preset's card.</summary>
+    private PresetOption Chosen => Presets.First(o => o.Preset == Preset);
+
+    /// <summary>Chooses the recommended preset at the recommended resolution (the person may pick another).</summary>
+    private void ChooseRecommended()
+    {
+        Preset = PresetMemory.Recommended.Preset;
+        Chosen.Resolution = PresetMemory.Recommended.Resolution;
     }
 
     /// <summary>The cache folder; set from the window (typed or browsed), it is the person's choice from then on.</summary>
@@ -284,7 +306,7 @@ internal sealed class SetupViewModel : ObservableObject
 
     public string Summary =>
         $"X-Plane: {_xplane}\nScenery packages: {string.Join(", ", SystemCheck.PackagesIn(_packages))} in {_packages}\n" +
-        $"Quality: {Preset.Name}\nCache: {CacheFolder}";
+        $"Quality: {Preset.Title}{(Chosen.Resolution.IsFull ? "" : $" at {Chosen.Resolution.Label} resolution")}\nCache: {CacheFolder}";
 
     public string? Error
     {
@@ -372,6 +394,11 @@ internal sealed class SetupViewModel : ObservableObject
             else
             {
                 settings = SettingsDocument.CreateNew(path, _xplane!, _packages!, CacheFolder, Preset);
+            }
+            foreach (PresetOption option in Presets)
+            {
+                settings.Set(option.Preset.ResolutionKey, option.Resolution.Value);
+                if (option.Base is { } near) settings.Set(QualityPreset.DynamicBaseKey, near.Name.ToLowerInvariant());
             }
             if (_testedWorkers is { } workers) settings.Set("download-workers", workers);
             Directory.CreateDirectory(CacheFolder);
