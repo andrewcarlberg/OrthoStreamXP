@@ -69,8 +69,7 @@ internal sealed class MainViewModel : ObservableObject
         Home = new HomeViewModel(this);
         Settings = new SettingsViewModel(this);
         Cache = new CacheViewModel(this);
-        Packages = new PackagesViewModel(Mount, Preferences, MeshHttp, MeshInstalls,
-            () => SettingsDocument.Load(SettingsDocument.DefaultPath).Get("base-packages"));
+        Packages = new PackagesViewModel(Mount, Preferences, MeshHttp, MeshInstalls, PackagesFolder);
         Scenery = new SceneryViewModel(Mount, () => SettingsDocument.Load(SettingsDocument.DefaultPath).Get("xplane"));
         About = new AboutViewModel();
         Navigation =
@@ -169,11 +168,43 @@ internal sealed class MainViewModel : ObservableObject
 
     public void Show(IPage page) => SelectedNav = Navigation.First(n => n.Page == page);
 
-    /// <summary>Called when the window has opened: setup on the first run, otherwise the auto-start.</summary>
+    /// <summary>
+    /// Called when the window has opened: setup on the first run, otherwise the auto-start, with the tiles AutoOrtho lacks
+    /// added meanwhile to the regions installed without them (they only add files, so the streaming need not wait).
+    /// </summary>
     public async Task OnOpenedAsync()
     {
-        if (NeedsSetup()) RunSetup();
-        else if (Preferences.AutoStart) await Mount.StartAsync().ConfigureAwait(true);
+        if (NeedsSetup())
+        {
+            RunSetup();
+            return;
+        }
+        _ = AddLackingTilesAsync();
+        if (Preferences.AutoStart) await Mount.StartAsync().ConfigureAwait(true);
+    }
+
+    private static string? PackagesFolder() => SettingsDocument.Load(SettingsDocument.DefaultPath).Get("base-packages");
+
+    /// <summary>The tiles AutoOrtho lacks, added to the installed regions without them; Home shows it while it runs.</summary>
+    private async Task AddLackingTilesAsync()
+    {
+        var progress = new Progress<InstallProgress>(Home.ShowTilesProgress);
+        IReadOnlyList<string> added = [];
+        try
+        {
+            var updater = new SupplementUpdater(MeshHttp, PackagesViewModel.Supplements(MeshHttp), MeshInstalls, PackagesFolder);
+            added = await updater.RunAsync(progress, CancellationToken.None).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            // Runs unawaited as the window opens: nothing that goes wrong may vanish, or stop the window.
+            Log.Error("The tiles AutoOrtho lacks could not be added; they are added at the next start", ex);
+        }
+        finally
+        {
+            Home.ShowTilesAdded(added);
+            Packages.FolderChanged();
+        }
     }
 
     /// <summary>No settings file yet, or one without the folders a mount needs.</summary>

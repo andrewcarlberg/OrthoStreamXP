@@ -371,7 +371,252 @@ public sealed class MeshPackagesTests : IDisposable
         Assert.Equal('h', (char)stream.ReadByte());
     }
 
+    // ---------------------------------------------------------------- the tiles AutoOrtho lacks
+
+    [Fact]
+    public void The_supplements_list_keeps_the_usable_entries_of_known_regions()
+    {
+        string json = """
+            { "schema": 1, "tag": "v3", "regions": {
+              "na": { "version": 2, "tiles": ["+44-122", "+45-123"], "contentHash": "ab12",
+                      "mesh": { "name": "z_na_supplement.zip", "url": "https://x.test/z_na_supplement.zip", "size": 100,
+                                "sha256Url": "https://x.test/z_na_supplement.zip.sha256" },
+                      "overlays": { "name": "y_na_supplement_overlays.zip", "url": "https://x.test/y.zip", "size": 10 } },
+              "aus_pac": { "version": 1, "tiles": ["-19-174"], "mesh": { "name": "z.zip", "url": "https://x.test/z.zip", "size": 5 } },
+              "mars": { "version": 1, "tiles": ["+00+000"], "mesh": { "name": "z.zip", "url": "https://x.test/z.zip", "size": 5 } },
+              "eur": { "version": 1, "tiles": ["+45+005"], "mesh": { "name": "..\\evil.zip", "url": "https://x.test/z.zip", "size": 5 } },
+              "afr": { "version": 1, "tiles": ["+30+000"], "mesh": { "name": "z.zip", "url": "http://x.test/z.zip", "size": 5 } },
+              "sa": { "version": 0, "tiles": ["-30-060"], "mesh": { "name": "z.zip", "url": "https://x.test/z.zip", "size": 5 } },
+              "asi": { "version": "one", "tiles": [], "mesh": {} }
+            } }
+            """;
+
+        IReadOnlyDictionary<string, RegionSupplement> supplements = SupplementCatalog.Parse(json);
+
+        Assert.Equal(["aus_pac", "na"], supplements.Keys.Order(StringComparer.Ordinal));
+        RegionSupplement na = supplements["na"];
+        Assert.Equal((2, 2, 110L), (na.Version, na.Tiles.Count, na.DownloadSize(withOverlays: true)));
+        Assert.Equal("https://x.test/z_na_supplement.zip.sha256", na.Mesh.Sha256Url);
+        Assert.Null(supplements["aus_pac"].Overlays);
+    }
+
+    [Fact]
+    public void A_supplements_list_of_another_format_gives_none()
+    {
+        Assert.Empty(SupplementCatalog.Parse("""{ "schema": 2, "regions": { "na": {} } }"""));
+        Assert.ThrowsAny<System.Text.Json.JsonException>(() => SupplementCatalog.Parse("not json"));
+    }
+
+    [Fact]
+    public async Task The_tiles_AutoOrtho_lacks_come_with_a_new_install_and_never_replace_its_files()
+    {
+        // Another region's overlays keep the shared package when North America is deleted: what it placed is seen to go.
+        await Installer().InstallAsync(Region("eur", "1", [Zip(("z_eur_00/Earth nav data/+40+000/+45+005.dsf", "eur"))],
+            Zip(("y/Earth nav data/+40+000/+45+005.dsf", "eur overlay"))), true, NoProgress, CancellationToken.None);
+        MeshRegion na = Region("na", "1",
+            [Zip(("z_na_00/Earth nav data/+40-130/+43-124.dsf", "AO dsf"), ("z_na_00/textures/23040_10192_ZL16.png", "AO mask"))],
+            Zip(("y/Earth nav data/+40-130/+43-124.dsf", "AO overlay"))) with
+        {
+            Supplement = Supplement("na", 1,
+                Zip(("z_na_supplement/Earth nav data/+40-130/+44-124.dsf", "our dsf"),
+                    ("z_na_supplement/Earth nav data/+40-130/+43-124.dsf", "our copy of AO's tile"),
+                    ("z_na_supplement/textures/23040_10192_ZL16.png", "our mask"),
+                    ("z_na_supplement/textures/23040_10160_ZL16.png", "new mask")),
+                Zip(("y_na_supplement_overlays/Earth nav data/+40-130/+44-124.dsf", "our overlay"),
+                    ("y_na_supplement_overlays/Earth nav data/+40-130/+43-124.dsf", "our copy of AO's overlay"))),
+        };
+
+        await Installer().InstallAsync(na, withOverlays: true, NoProgress, CancellationToken.None);
+
+        string mesh = Path.Join(Packages, "OrthoStream_NA");
+        string overlays = Path.Join(Packages, "OrthoStream_Overlays", "Earth nav data", "+40-130");
+        Assert.Equal("our dsf", File.ReadAllText(Path.Join(mesh, "Earth nav data", "+40-130", "+44-124.dsf")));
+        Assert.Equal("AO dsf", File.ReadAllText(Path.Join(mesh, "Earth nav data", "+40-130", "+43-124.dsf")));
+        Assert.Equal("AO mask", File.ReadAllText(Path.Join(mesh, "textures", "23040_10192_ZL16.png")));
+        Assert.Equal("new mask", File.ReadAllText(Path.Join(mesh, "textures", "23040_10160_ZL16.png")));
+        Assert.Equal("our overlay", File.ReadAllText(Path.Join(overlays, "+44-124.dsf")));
+        Assert.Equal("AO overlay", File.ReadAllText(Path.Join(overlays, "+43-124.dsf")));
+        Assert.Equal(1, Installer().Installed()["na"].Supplement);
+        Assert.False(Directory.Exists(Path.Join(Packages, RegionInstaller.WorkFolderName)));
+
+        Installer().Delete("na");
+
+        Assert.False(Directory.Exists(overlays)); // the supplement's overlays were recorded as North America's
+        Assert.True(File.Exists(Path.Join(Packages, "OrthoStream_Overlays", "Earth nav data", "+40+000", "+45+005.dsf")));
+    }
+
+    [Fact]
+    public async Task A_region_whose_supplement_cannot_be_had_is_installed_without_it_and_gets_it_later()
+    {
+        byte[] aoZip = Zip(("z_na_00/Earth nav data/+40-130/+43-124.dsf", "AO dsf"));
+        MeshRegion na = Region("na", "1", [aoZip]) with
+        {
+            // Not on the server: its download fails.
+            Supplement = new RegionSupplement(1, ["+44-124"], new MeshAsset("z_na_supplement.zip", Host + "z_na_supplement.zip", 50), null),
+        };
+
+        await Installer().InstallAsync(na, withOverlays: true, NoProgress, CancellationToken.None);
+
+        InstalledRegion installed = Installer().Installed()["na"];
+        Assert.Null(installed.Supplement);
+        Assert.True(File.Exists(Path.Join(Packages, "OrthoStream_NA", "Earth nav data", "+40-130", "+43-124.dsf")));
+
+        na = na with { Supplement = Supplement("na", 1, Zip(("z_na_supplement/Earth nav data/+40-130/+44-124.dsf", "our dsf"))) };
+        Assert.True(installed.Lacks(na.Supplement));
+        _server.Requests.Clear();
+        await Installer().InstallAsync(na, withOverlays: true, NoProgress, CancellationToken.None);
+
+        Assert.DoesNotContain(_server.Requests, r => r.Url.Contains("z_na_00", StringComparison.Ordinal)); // only the tiles were downloaded
+        Assert.Equal("our dsf", File.ReadAllText(Path.Join(Packages, "OrthoStream_NA", "Earth nav data", "+40-130", "+44-124.dsf")));
+        Assert.Equal(("1", 1), (Installer().Installed()["na"].Release, Installer().Installed()["na"].Supplement));
+    }
+
+    [Fact]
+    public async Task Tiles_added_to_an_installed_region_keep_the_overlays_any_region_placed()
+    {
+        await Installer().InstallAsync(Region("na", "1", [Zip(("z_na_00/Earth nav data/+40-130/+43-124.dsf", "AO dsf"))],
+            Zip(("y/Earth nav data/+40-130/+43-124.dsf", "AO overlay"))), true, NoProgress, CancellationToken.None);
+        // Left by an earlier try that stopped before it was recorded: no region placed it, so it is taken over.
+        _tree.WriteBytes("Base Packages/OrthoStream_Overlays/Earth nav data/+40-130/+45-124.dsf", Encoding.UTF8.GetBytes("half"));
+        RegionSupplement supplement = Supplement("na", 1,
+            Zip(("z_na_supplement/Earth nav data/+40-130/+44-124.dsf", "our dsf")),
+            Zip(("y/Earth nav data/+40-130/+44-124.dsf", "our overlay"), ("y/Earth nav data/+40-130/+43-124.dsf", "our copy"),
+                ("y/Earth nav data/+40-130/+45-124.dsf", "whole")));
+
+        await Installer().AddSupplementAsync("na", supplement, NoProgress, CancellationToken.None);
+
+        string overlays = Path.Join(Packages, "OrthoStream_Overlays", "Earth nav data", "+40-130");
+        Assert.Equal("AO overlay", File.ReadAllText(Path.Join(overlays, "+43-124.dsf")));
+        Assert.Equal("our overlay", File.ReadAllText(Path.Join(overlays, "+44-124.dsf")));
+        Assert.Equal("whole", File.ReadAllText(Path.Join(overlays, "+45-124.dsf")));
+        Assert.Equal(1, Installer().Installed()["na"].Supplement);
+        Assert.False(Directory.Exists(Path.Join(Packages, RegionInstaller.WorkFolderName)));
+
+        Installer().Delete("na");
+
+        Assert.False(Directory.Exists(Path.Join(Packages, "OrthoStream_Overlays")));
+    }
+
+    [Fact]
+    public async Task A_newer_version_of_the_tiles_replaces_its_own_files_but_still_not_AutoOrthos()
+    {
+        MeshRegion na = Region("na", "1",
+            [Zip(("z_na_00/Earth nav data/+40-130/+43-124.dsf", "AO dsf"), ("z_na_00/textures/1_2_ZL16.png", "AO mask"))],
+            Zip(("y/Earth nav data/+40-130/+43-124.dsf", "AO overlay"))) with
+        {
+            Supplement = Supplement("na", 1,
+                Zip(("z/Earth nav data/+40-130/+44-124.dsf", "ours 1"), ("z/textures/1_2_ZL16.png", "our mask 1")),
+                Zip(("y/Earth nav data/+40-130/+44-124.dsf", "our overlay 1"))),
+        };
+        await Installer().InstallAsync(na, withOverlays: true, NoProgress, CancellationToken.None);
+        RegionSupplement second = Supplement("na", 2,
+            Zip(("z/Earth nav data/+40-130/+44-124.dsf", "ours 2"), ("z/Earth nav data/+40-130/+43-124.dsf", "ours over AO's"),
+                ("z/textures/1_2_ZL16.png", "our mask 2"), ("z/Earth nav data/+40-130/+45-124.dsf", "new in 2")),
+            Zip(("y/Earth nav data/+40-130/+44-124.dsf", "our overlay 2"), ("y/Earth nav data/+40-130/+43-124.dsf", "our copy of AO's")));
+
+        await Installer().AddSupplementAsync("na", second, NoProgress, CancellationToken.None);
+
+        string mesh = Path.Join(Packages, "OrthoStream_NA", "Earth nav data", "+40-130");
+        string overlays = Path.Join(Packages, "OrthoStream_Overlays", "Earth nav data", "+40-130");
+        Assert.Equal("ours 2", File.ReadAllText(Path.Join(mesh, "+44-124.dsf")));
+        Assert.Equal("new in 2", File.ReadAllText(Path.Join(mesh, "+45-124.dsf")));
+        Assert.Equal("AO dsf", File.ReadAllText(Path.Join(mesh, "+43-124.dsf")));
+        Assert.Equal("AO mask", File.ReadAllText(Path.Join(Packages, "OrthoStream_NA", "textures", "1_2_ZL16.png"))); // AutoOrtho's from the start
+        Assert.Equal("our overlay 2", File.ReadAllText(Path.Join(overlays, "+44-124.dsf")));
+        Assert.Equal("AO overlay", File.ReadAllText(Path.Join(overlays, "+43-124.dsf")));
+        InstalledRegion installed = Installer().Installed()["na"];
+        Assert.Equal(2, installed.Supplement);
+        Assert.Equal(2, installed.SupplementFiles!.Count);
+    }
+
+    [Fact]
+    public async Task A_supplement_file_named_like_one_of_AutoOrthos_zips_is_refused()
+    {
+        MeshRegion na = Region("na", "1", [Zip(("z_na_00/Earth nav data/+40-130/+43-124.dsf", "AO dsf"))]) with
+        {
+            Supplement = new RegionSupplement(1, ["+44-124"], new MeshAsset("z_na_00.zip", Host + "other.zip", 50), null),
+        };
+
+        await Assert.ThrowsAsync<InstallException>(() => Installer().InstallAsync(na, true, NoProgress, CancellationToken.None));
+
+        Assert.Empty(_server.Requests);
+    }
+
+    [Fact]
+    public async Task At_the_start_the_tiles_are_added_to_regions_installed_without_them()
+    {
+        await Installer().InstallAsync(Region("na", "1", [Zip(("z_na_00/Earth nav data/+40-130/+43-124.dsf", "AO dsf"))]),
+            true, NoProgress, CancellationToken.None);
+        Supplement("na", 3, Zip(("z_na_supplement/Earth nav data/+40-130/+44-124.dsf", "our dsf")));
+        _server.Files[SupplementCatalog.ManifestUrl] = Encoding.UTF8.GetBytes($$"""
+            { "schema": 1, "regions": { "na": { "version": 3, "tiles": ["+44-124"],
+              "mesh": { "name": "z_na_supplement.zip", "url": "{{Host}}z_na_supplement.zip", "size": {{_server.Files[Host + "z_na_supplement.zip"].Length}} } } } }
+            """);
+        var slot = new OrthoStreamXP.Gui.InstallSlot();
+        var catalog = new SupplementCatalog(_http, _tree.PathOf("mesh-supplements.json"));
+        var updater = new OrthoStreamXP.Gui.SupplementUpdater(_http, catalog, slot, () => Packages);
+
+        Assert.Equal(["North America"], await updater.RunAsync(NoProgress, CancellationToken.None));
+
+        Assert.Equal("our dsf", File.ReadAllText(Path.Join(Packages, "OrthoStream_NA", "Earth nav data", "+40-130", "+44-124.dsf")));
+        Assert.Equal(3, Installer().Installed()["na"].Supplement);
+        Assert.False(slot.Busy);
+        _server.Requests.Clear();
+        Assert.Empty(await updater.RunAsync(NoProgress, CancellationToken.None)); // has them now: nothing is downloaded
+        Assert.DoesNotContain(_server.Requests, r => r.Url.EndsWith(".zip", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Without_the_supplements_list_nothing_is_added_at_the_start()
+    {
+        await Installer().InstallAsync(Region("na", "1", [Zip(("z_na_00/Earth nav data/+40-130/+43-124.dsf", "AO dsf"))]),
+            true, NoProgress, CancellationToken.None);
+        var catalog = new SupplementCatalog(_http, _tree.PathOf("mesh-supplements.json"));
+        var updater = new OrthoStreamXP.Gui.SupplementUpdater(_http, catalog, new OrthoStreamXP.Gui.InstallSlot(), () => Packages);
+
+        Assert.Empty(await updater.RunAsync(NoProgress, CancellationToken.None)); // the list is not on the server
+
+        Assert.Null(Installer().Installed()["na"].Supplement);
+    }
+
+    [Fact]
+    public void A_region_installed_without_its_supplement_offers_an_update_of_the_tiles_alone()
+    {
+        var page = new OrthoStreamXP.Gui.PackagesViewModel(new OrthoStreamXP.Gui.MountController(), new OrthoStreamXP.Gui.WindowPreferences(),
+            _http, new OrthoStreamXP.Gui.InstallSlot(), () => Packages);
+        MeshRegion na = Region("na", "1", [Zip(("z_na_00/Earth nav data/+40-130/+43-124.dsf", "AO dsf"))]) with
+        {
+            Supplement = Supplement("na", 2, Zip(("z_na_supplement/Earth nav data/+40-130/+44-124.dsf", "our dsf"))),
+        };
+        var row = new OrthoStreamXP.Gui.RegionRow(page, na) { Installed = new InstalledRegion("na", "1", true, DateTime.UtcNow, Supplement: 1) };
+
+        Assert.False(row.UpToDate);
+        Assert.True(row.OnlyTilesLacking);
+        Assert.Equal("Update", row.InstallLabel);
+        Assert.Contains("tiles AutoOrtho lacks", row.Status, StringComparison.Ordinal);
+
+        row.Installed = row.Installed with { Supplement = 2 };
+
+        Assert.True(row.UpToDate);
+        Assert.False(row.OnlyTilesLacking);
+    }
+
     // ---------------------------------------------------------------- helpers
+
+    /// <summary>The tiles AutoOrtho lacks for a region, served by the fake server (the zips' names as the scenery repository publishes them).</summary>
+    private RegionSupplement Supplement(string id, int version, byte[] meshZip, byte[]? overlaysZip = null)
+    {
+        string mesh = $"z_{id}_supplement.zip";
+        _server.Files[Host + mesh] = meshZip;
+        MeshAsset? overlays = null;
+        if (overlaysZip is not null)
+        {
+            string name = $"y_{id}_supplement_overlays.zip";
+            _server.Files[Host + name] = overlaysZip;
+            overlays = new MeshAsset(name, Host + name, overlaysZip.Length);
+        }
+        return new RegionSupplement(version, ["+44-124"], new MeshAsset(mesh, Host + mesh, meshZip.Length), overlays);
+    }
 
     /// <summary>A region whose files the fake server serves; its overlays zip cut in <paramref name="parts"/> parts.</summary>
     private MeshRegion Region(string id, string release, byte[][] meshZips, byte[]? overlaysZip = null, int parts = 1)

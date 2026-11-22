@@ -29,7 +29,7 @@ Traditional photo scenery often requires downloading and building large areas be
 - **Sharp, crisp textures** — up to 8192 px, keeping all the detail of the imagery, sharpened a little and given a touch of contrast, as aerial photos are often hazy.
 - **Settings that adapt to your setup** — test your connection before the first flight to get a recommended preset, and after a sufficiently long flight, get recommendations based on how the scenery performed on your PC and internet connection. You decide whether to apply them.
 - **Seasonal colours** — optionally give summer imagery a more autumnal or winter appearance, based on the simulated date and location, with grass and fields optionally coloured by NASA's satellite record of how green each place really was.
-- **Clean photos up close** — X-Plane's procedural grass and dirt speckles are kept off the aerial photos by default, or faded to the strength you like, without changing your scenery packages.
+- **Clean photos up close** — X-Plane's procedural grass and dirt speckles are kept faint on the aerial photos by default, or set to the strength you like, without changing your scenery packages.
 - **Towns lit at night** — optionally give the photo scenery street lamps and the light of the houses along X-Plane's roads, so towns glow after dark as on X-Plane's own scenery. You can also skip the detailed photos at night to save downloads, keeping the lights.
 - **Exposure and a live preview** — tone down photos that look too bright next to X-Plane's own scenery, and see any colour change on a photo from your cache before you fly.
 - **See what happened during your flight** — review download performance, scenery loading, and your flight route.
@@ -61,7 +61,7 @@ The installer also installs the .NET 10 desktop runtime if it is missing.
 
 **Important:** OrthoStreamXP streams imagery onto scenery packages; it does not create terrain meshes itself. There are two ways to get them:
 
-1. **Download a region from within OrthoStreamXP:** a whole region's mesh (Europe, North America, ...), during setup or later from the **Packages** page.
+1. **Download a region from within OrthoStreamXP:** a whole region's mesh (Europe, North America, ...), during setup or later from the **Packages** page. The few tiles AutoOrtho's collection lacks (around Portland, Oregon, and in Tonga) are added to their region from [OrthoStreamXP's own collection](https://github.com/flysimdev/orthostreamxp-scenery).
 2. **Use your own packages:** compatible packages can come from tools such as Ortho4XP, OrthoStudio XP, AutoOrtho, and XPME. You can select an existing package folder during setup.
 
 ## Installation

@@ -39,6 +39,7 @@ internal sealed class RegionRow : ObservableObject
     public string Details =>
         $"{CacheInventory.FormatBytes(Region.MeshSize)} mesh" +
         (Region.OverlaysSize > 0 ? $" + {CacheInventory.FormatBytes(Region.OverlaysSize)} roads, forests and buildings" : "") +
+        (Region.Supplement is { } supplement ? $" + {supplement.Tiles.Count} tiles AutoOrtho lacks, from OrthoStreamXP" : "") +
         $" · installed as {Region.PackageName}";
 
     public InstalledRegion? Installed
@@ -64,7 +65,10 @@ internal sealed class RegionRow : ObservableObject
 
     public bool IsInstalled => Installed is not null;
 
-    public bool UpToDate => Installed is { } i && i.Release == Region.Release;
+    public bool UpToDate => Installed is { } i && i.Release == Region.Release && !i.Lacks(Region.Supplement);
+
+    /// <summary>Installed at this release, without (all of) the tiles AutoOrtho lacks: an update only adds those.</summary>
+    public bool OnlyTilesLacking => Installed is { } i && i.Release == Region.Release && i.Lacks(Region.Supplement);
 
     public bool Busy
     {
@@ -127,7 +131,9 @@ internal sealed class RegionRow : ObservableObject
             if (Installed is { } installed)
                 return UpToDate
                     ? $"Installed · release {installed.Release}{(installed.Overlays ? "" : ", without roads, forests and buildings")}"
-                    : $"Update available: release {installed.Release} → {Region.Release}";
+                    : OnlyTilesLacking
+                        ? $"Update available: {Region.Supplement!.Tiles.Count} tiles AutoOrtho lacks ({CacheInventory.FormatBytes(Region.Supplement.DownloadSize(installed.Overlays))})"
+                        : $"Update available: release {installed.Release} → {Region.Release}";
             return Partial > 0 ? $"Stopped with {CacheInventory.FormatBytes(Partial)} downloaded: Resume goes on from there" : "Not installed";
         }
     }
@@ -153,6 +159,7 @@ internal sealed class RegionRow : ObservableObject
     {
         Raise(nameof(IsInstalled));
         Raise(nameof(UpToDate));
+        Raise(nameof(OnlyTilesLacking));
         Raise(nameof(InstallLabel));
         Raise(nameof(ShowInstall));
         Raise(nameof(Status));

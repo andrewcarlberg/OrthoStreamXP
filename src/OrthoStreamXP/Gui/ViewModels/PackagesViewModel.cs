@@ -115,6 +115,9 @@ internal sealed class PackagesViewModel : ObservableObject, IPage
         {
             var catalog = new MeshCatalog(_http, Path.Join(AppPaths.Root, "mesh-regions.json"));
             IReadOnlyList<MeshRegion> regions = await catalog.LoadAsync(refresh, CancellationToken.None).ConfigureAwait(true);
+            IReadOnlyDictionary<string, RegionSupplement> supplements =
+                await Supplements(_http).LoadAsync(refresh, CancellationToken.None).ConfigureAwait(true);
+            regions = SupplementCatalog.Attach(regions, supplements);
             if (_install is null)
             {
                 Rows.Clear();
@@ -133,8 +136,12 @@ internal sealed class PackagesViewModel : ObservableObject, IPage
         }
     }
 
+    /// <summary>The list of the tiles AutoOrtho lacks, kept beside the settings.</summary>
+    public static SupplementCatalog Supplements(HttpClient http) => new(http, Path.Join(AppPaths.Root, "mesh-supplements.json"));
+
+    /// <summary>Adding only the tiles AutoOrtho lacks adds files and replaces none, so it may run while the region is in use.</summary>
     public bool CanInstall(RegionRow row) =>
-        !_slot.Busy && Folder is not null && !row.UpToDate && (!row.IsInstalled || _mount.IsStopped);
+        !_slot.Busy && Folder is not null && !row.UpToDate && (!row.IsInstalled || _mount.IsStopped || row.OnlyTilesLacking);
 
     public bool CanDelete(RegionRow row) => !_slot.Busy && row.IsInstalled && !row.Deleting && _mount.IsStopped;
 

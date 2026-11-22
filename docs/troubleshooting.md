@@ -22,7 +22,7 @@ When something goes wrong, Home shows a notice that says what happened, usually 
 | **Downloads are failing** | Check your internet connection. OrthoStreamXP keeps trying; **Open log** shows the details. |
 | **Blurry ground for a while** | A new area takes a few minutes the first time. If it happens often, try a lower preset or apply the tuning suggestions after your flight (see [Flying](flying.md#tuning-suggestions)). |
 | **Photos look too bright next to X-Plane's own scenery** | Lower **Exposure** in [Settings › Colours](settings.md#exposure). |
-| **Noisy, speckled ground up close** | X-Plane's grass and dirt detail is drawn over the photos. Set **Ground detail** to **Off** (or lower it) in [Settings › Quality](settings.md#ground-detail). |
+| **Noisy, speckled ground up close** | X-Plane's grass and dirt detail is drawn over the photos. Lower **Ground detail** (30 % is the lowest) in [Settings › Quality](settings.md#ground-detail). |
 
 ## The Log page
 
