@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Troubleshooting
+    url: https://flysimdev.github.io/OrthoStreamXP/troubleshooting/
+    about: What each notice on the Home page means and how to fix the common problems.
+  - name: Questions and answers
+    url: https://flysimdev.github.io/OrthoStreamXP/faq/
+    about: Answers to the questions users ask most often.
+  - name: Download the newest version
+    url: https://github.com/flysimdev/OrthoStreamXP/releases/latest
+    about: Please check that the problem still happens in the newest version.

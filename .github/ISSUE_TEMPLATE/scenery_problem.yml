@@ -1,0 +1,160 @@
+name: Scenery looks wrong
+description: Blurry or missing photos, wrong colours, seams, odd tiles or other visual problems in X-Plane.
+title: "[Scenery]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting this. A visual problem can only be checked with a **screenshot** and the **exact place**, so both are required.
+
+        **Before you start**
+        - A new area takes a few minutes to sharpen the first time you fly there. Is it still wrong after that?
+        - Set X-Plane's **Texture Quality** to the maximum (Settings › Graphics). Below the maximum, X-Plane skips the sharpest photos.
+        - Check the [Troubleshooting](https://flysimdev.github.io/OrthoStreamXP/troubleshooting/) page: too-bright photos and noisy ground up close have settings of their own.
+        - Wrong or old photos at a place usually come from the imagery provider. Try another source under Settings › Pictures and download, and say below whether it helped.
+
+  - type: input
+    id: version
+    attributes:
+      label: OrthoStreamXP version
+      description: Shown on the **About** page.
+      placeholder: "1.5.1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What looks wrong?
+      multiple: true
+      options:
+        - Blurry ground that does not sharpen
+        - Missing photos (X-Plane's own default ground shows)
+        - Wrong or strange colours (seasons, too bright or too dark)
+        - Visible seams or edges between tiles
+        - Water, coastline or terrain problems
+        - Something else (please describe below)
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the problem
+      description: What you see, and how long it lasted. Does it stay after a few minutes in the same area?
+    validations:
+      required: true
+
+  - type: input
+    id: location
+    attributes:
+      label: Exact place
+      description: Coordinates are best (X-Plane's map shows them). Or the airport and runway, with the direction you were looking.
+      placeholder: "47.46 N 8.55 E, looking north, or LSZH runway 16 threshold"
+    validations:
+      required: true
+
+  - type: input
+    id: altitude
+    attributes:
+      label: Height above the ground
+      placeholder: "About 2,000 ft"
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: Drag one or more screenshots from X-Plane into this box. If you can, add one of the same place with another imagery source, or of the photo on Bing Maps or Google Maps.
+      placeholder: Drag and drop screenshots here.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: preset
+    attributes:
+      label: Quality preset
+      description: Settings › Quality.
+      options:
+        - Balanced
+        - Sharp
+        - Ultra
+        - Extra
+        - Dynamic
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: source
+    attributes:
+      label: Where the pictures come from
+      description: Settings › Pictures and download.
+      options:
+        - Bing, then Esri where Bing has no picture
+        - Esri (ArcGIS), then Bing where Esri has no picture
+        - Bing only
+        - Geoportal in Poland, Bing and Esri elsewhere
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: colours
+    attributes:
+      label: Colour settings (for colour problems)
+      description: Settings › Colours. The season, its strength and the exposure.
+      placeholder: "Season: Automatic, strength 100 %, exposure 100 %"
+
+  - type: dropdown
+    id: packages
+    attributes:
+      label: Where do your scenery packages come from?
+      multiple: true
+      options:
+        - Regions downloaded in OrthoStreamXP
+        - Ortho4XP
+        - OrthoStudio XP
+        - Other (please say which below)
+    validations:
+      required: true
+
+  - type: textarea
+    id: system
+    attributes:
+      label: Your system
+      value: |
+        - X-Plane version:
+        - X-Plane Texture Quality setting:
+        - Graphics card and its memory:
+    validations:
+      required: true
+
+  - type: textarea
+    id: app-log
+    attributes:
+      label: OrthoStreamXP log
+      description: |
+        On the **Log** page, click **Open log folder** (or open `%LOCALAPPDATA%\OrthoStreamXP\logs`) and drag the `orthostreamxp-<date>-<time>.log` file of that flight into this box. It shows whether the photos were built and delivered in time.
+
+        The logs contain folder paths that may show your Windows user name. Nothing else personal is in them.
+      placeholder: Drag and drop the log file here.
+    validations:
+      required: true
+
+  - type: textarea
+    id: xplane-log
+    attributes:
+      label: X-Plane Log.txt
+      description: "`Log.txt` in your X-Plane 12 folder, from the same flight. It is rewritten at every X-Plane start, so copy it before you start X-Plane again."
+      placeholder: Drag and drop Log.txt here.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: X-Plane's Texture Quality is at the maximum, or I said above what it is.
+          required: true
+        - label: I searched the existing issues and this problem is not reported yet.
+          required: true
