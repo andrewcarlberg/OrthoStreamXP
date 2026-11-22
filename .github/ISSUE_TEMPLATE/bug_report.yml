@@ -1,0 +1,171 @@
+name: Bug report
+description: OrthoStreamXP fails, freezes, shows an error, or X-Plane does not load the scenery.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a problem. A complete report is usually answered much faster, because most problems can only be found in the log files.
+
+        **Before you start**
+        - Check the [Troubleshooting](https://flysimdev.github.io/OrthoStreamXP/troubleshooting/) page and the [Questions and answers](https://flysimdev.github.io/OrthoStreamXP/faq/): many notices on the Home page have a known fix.
+        - Update to the newest version: click **Check for updates** at the top of the Home page.
+        - One problem per issue, please. For blurry ground, wrong colours or missing photos, use the **Scenery looks wrong** form instead.
+
+        Please write in English if you can. A translation tool is fine.
+
+  - type: input
+    id: version
+    attributes:
+      label: OrthoStreamXP version
+      description: Shown on the **About** page.
+      placeholder: "1.5.1"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you saw, including the exact text of any notice or error message.
+      placeholder: |
+        X-Plane stays on the loading screen. Home says "OrthoStreamXP is running".
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What you did before the problem appeared, in order.
+      placeholder: |
+        1. Started OrthoStreamXP and clicked Start
+        2. Started X-Plane and loaded a flight at EPWA, runway 29
+        3. The loading bar stopped at about half
+    validations:
+      required: true
+
+  - type: dropdown
+    id: when
+    attributes:
+      label: When does it happen?
+      options:
+        - During setup or while downloading a region
+        - When I click Start in OrthoStreamXP
+        - While X-Plane loads a flight
+        - During the flight
+        - When I stop OrthoStreamXP or quit X-Plane
+        - While updating OrthoStreamXP
+        - Other (please describe above)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: How often?
+      options:
+        - Every time
+        - Sometimes
+        - It happened once
+    validations:
+      required: true
+
+  - type: input
+    id: location
+    attributes:
+      label: Where were you flying?
+      description: The airport (ICAO code) or the coordinates, if the problem is tied to a place.
+      placeholder: "EPWA, or 52.16 N 20.96 E"
+
+  - type: dropdown
+    id: preset
+    attributes:
+      label: Quality preset
+      description: Settings › Quality.
+      options:
+        - Balanced
+        - Sharp
+        - Ultra
+        - Extra
+        - Dynamic
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: packages
+    attributes:
+      label: Where do your scenery packages come from?
+      multiple: true
+      options:
+        - Regions downloaded in OrthoStreamXP
+        - Ortho4XP
+        - OrthoStudio XP
+        - Other (please say which below)
+    validations:
+      required: true
+
+  - type: input
+    id: other-tools
+    attributes:
+      label: Other scenery streaming tools
+      description: Is AutoOrtho, XEarthLayer or another streaming tool installed or running on this PC? They conflict when they show the same packages.
+      placeholder: "None / AutoOrtho installed but not running / ..."
+
+  - type: textarea
+    id: system
+    attributes:
+      label: Your system
+      value: |
+        - X-Plane version:
+        - Windows version:
+        - Graphics card and its memory:
+        - RAM:
+        - Internet connection speed (if known):
+    validations:
+      required: true
+
+  - type: textarea
+    id: app-log
+    attributes:
+      label: OrthoStreamXP log
+      description: |
+        **This is the most important part.** On the **Log** page, click **Open log folder** (or open `%LOCALAPPDATA%\OrthoStreamXP\logs`). Drag the `orthostreamxp-<date>-<time>.log` file of the session with the problem into this box. If you are not sure which one, zip the newest few and drag the zip in.
+
+        The logs contain folder paths that may show your Windows user name. Nothing else personal is in them.
+      placeholder: Drag and drop the log file here.
+    validations:
+      required: true
+
+  - type: textarea
+    id: xplane-log
+    attributes:
+      label: X-Plane Log.txt
+      description: |
+        `Log.txt` in your X-Plane 12 folder. It is rewritten at every X-Plane start, so copy it **right after** the problem, before you start X-Plane again. Needed for loading problems, freezes and crashes.
+      placeholder: Drag and drop Log.txt here.
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots and anything else
+      description: A screenshot of the Home page notice or of X-Plane helps. Mention anything you changed recently (new version, new packages, settings, drivers).
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: OrthoStreamXP was running (Home shows it streaming) **before** I started X-Plane.
+          required: true
+        - label: I searched the existing issues and this problem is not reported yet.
+          required: true

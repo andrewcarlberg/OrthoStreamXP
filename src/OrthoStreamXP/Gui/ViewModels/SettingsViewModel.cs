@@ -266,20 +266,16 @@ internal sealed class SettingsViewModel : ObservableObject, IPage
     /// <summary>How strong X-Plane's grass and dirt decals are over the photos, in percent, for the slider.</summary>
     public double GroundDetail
     {
-        get => _document.GetDouble("ground-detail") ?? 0;
+        get => Math.Clamp(_document.GetDouble("ground-detail") ?? Scenery.TerrainDecals.Min, Scenery.TerrainDecals.Min, Scenery.TerrainDecals.Full);
         set
         {
-            Save("ground-detail", Math.Clamp((int)Math.Round(value), 0, Scenery.TerrainDecals.Full).ToString(CultureInfo.InvariantCulture));
+            Save("ground-detail", Math.Clamp((int)Math.Round(value), Scenery.TerrainDecals.Min, Scenery.TerrainDecals.Full).ToString(CultureInfo.InvariantCulture));
             Raise();
             Raise(nameof(GroundDetailText));
         }
     }
 
-    public string GroundDetailText => GroundDetail switch
-    {
-        <= 0 => "Off",
-        _ => $"{GroundDetail:0} %",
-    };
+    public string GroundDetailText => $"{GroundDetail:0} %";
 
     /// <summary>Street lamps and lit windows on the photo scenery at night.</summary>
     public bool NightLightsOn

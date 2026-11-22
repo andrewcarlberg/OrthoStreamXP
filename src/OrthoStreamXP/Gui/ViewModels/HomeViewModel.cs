@@ -26,6 +26,8 @@ internal sealed class HomeViewModel : ObservableObject, IPage
     private System.Windows.Media.ImageSource? _reportBackdrop;
     private string? _reviewPath;
     private Notice? _tuningNotice;
+    private Notice? _tilesNotice;
+    private int _tilesPercent = -1;
     private readonly AppUpdates _updates = new();
     /// <summary>Looks for a new version 10 seconds after the window opens, then every 6 hours.</summary>
     private readonly DispatcherTimer _updateTimer = new() { Interval = TimeSpan.FromSeconds(10) };
@@ -143,6 +145,29 @@ internal sealed class HomeViewModel : ObservableObject, IPage
             _ => null, // Downloaded or already ready: the update notice shows it.
         };
         if (message is not null) UpdateCheckReported?.Invoke(this, message);
+    }
+
+    /// <summary>The tiles AutoOrtho lacks being added to the installed regions (as the window opens); shown at each whole percent.</summary>
+    public void ShowTilesProgress(InstallProgress progress)
+    {
+        int percent = progress.Total > 0 ? (int)(100 * progress.Done / progress.Total) : 0;
+        if (percent == _tilesPercent) return;
+        _tilesPercent = percent;
+        _tilesNotice = new Notice(Severity.Info, "Adding the tiles AutoOrtho lacks",
+            $"{progress.Stage}: {CacheInventory.FormatBytes(progress.Done)} of {CacheInventory.FormatBytes(progress.Total)}. " +
+            "You can stream meanwhile; if you do, X-Plane sees the new tiles from the next start of OrthoStreamXP.");
+        Notices = BuildNotices();
+    }
+
+    /// <summary>The tiles AutoOrtho lacks were added to <paramref name="regions"/> (none: the notice goes).</summary>
+    public void ShowTilesAdded(IReadOnlyList<string> regions)
+    {
+        _tilesPercent = -1;
+        _tilesNotice = regions.Count == 0 ? null
+            : new Notice(Severity.Success, "Tiles AutoOrtho lacks were added",
+                $"{string.Join(", ", regions)} now {(regions.Count == 1 ? "has" : "have")} the tiles missing from AutoOrtho's scenery. " +
+                "If OrthoStreamXP was streaming meanwhile, X-Plane sees them from its next start.");
+        Notices = BuildNotices();
     }
 
     /// <summary>Installs the downloaded version and restarts, once confirmed; not while the scenery streams.</summary>
@@ -622,6 +647,7 @@ internal sealed class HomeViewModel : ObservableObject, IPage
                     "Update…", InstallUpdate)
                 : new Notice(Severity.Info, $"OrthoStreamXP {version} is ready to install",
                     $"A new version was downloaded (you have {_updates.CurrentVersion}). Stop the streaming when you have finished flying, and install it from here."));
+        if (_tilesNotice is not null) notices.Add(_tilesNotice);
         if (Mount.State == MountState.Stopped && !ShowReview)
         {
             if (_tuningNotice is not null) notices.Add(_tuningNotice);

@@ -81,11 +81,11 @@ Up close, X-Plane can sprinkle its own procedural grass, shrubs and dirt over th
 
 The **Ground detail** slider sets how strong this effect is:
 
-- **Off** (0 %, the default): the photos are shown as they are.
-- **10–90 %**: a lighter version of X-Plane's effect, for some extra texture when you are low.
+- **30 %** (the lowest, and the default): a faint version of X-Plane's effect; the photos stay clean and sharp.
+- **40–90 %**: a stronger version of X-Plane's effect, for more texture when you are low.
 - **100 %**: X-Plane's full effect, as the packages define it.
 
-Your scenery packages are not changed: OrthoStreamXP adjusts the terrain files as X-Plane reads them. The in-between strengths are made from X-Plane's own decal files, so they need the **X-Plane folder** to be set. Like every setting, a change applies from the next start.
+Your scenery packages are not changed: OrthoStreamXP adjusts the terrain files as X-Plane reads them. An older settings file with a lower value (such as the former default, 0) is read as 30 %. The strengths below 100 % are made from X-Plane's own decal files, so they need the **X-Plane folder** to be set. Like every setting, a change applies from the next start.
 
 ## Folders
 

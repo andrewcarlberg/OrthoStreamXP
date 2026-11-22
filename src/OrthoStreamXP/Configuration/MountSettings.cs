@@ -142,8 +142,10 @@ internal sealed record MountSettings
             throw new SettingsException($"exposure must be between {OrthoStreamXP.Textures.Exposure.Min} and {OrthoStreamXP.Textures.Exposure.Full}");
         string readLogValue = values.String("read-log") ?? "off";
         bool readLog = ParseOnOff(readLogValue) ?? throw new SettingsException($"read-log must be on or off, not '{readLogValue}'");
-        int groundDetail = values.Int("ground-detail", 0);
+        int groundDetail = values.Int("ground-detail", Scenery.TerrainDecals.Min);
         if (groundDetail is < 0 or > Scenery.TerrainDecals.Full) throw new SettingsException("ground-detail must be between 0 and 100");
+        // Older settings files may hold a value below the minimum (0 used to be the default); it is raised to it.
+        groundDetail = Math.Max(groundDetail, Scenery.TerrainDecals.Min);
         string nightValue = values.String("night-lights") ?? "off";
         bool nightLights = ParseOnOff(nightValue) ?? throw new SettingsException($"night-lights must be on or off, not '{nightValue}'");
         string skipValue = values.String("skip-photos-at-night") ?? "off";

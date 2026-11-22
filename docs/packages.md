@@ -19,6 +19,24 @@ The meshes are downloaded from a public collection on [GitHub](https://github.co
 
 The page shows the exact sizes of the current release.
 
+## Tiles AutoOrtho lacks
+
+AutoOrtho's collection is missing a few tiles, for example 9 in Oregon, around Portland and along the coast (North America) and one in Tonga
+(Australia and the Pacific). OrthoStreamXP keeps these tiles in [its own collection](https://github.com/flysimdev/orthostreamxp-scenery).
+It adds them to the region they belong to, so there is no extra package:
+
+- **Installing a region** adds its missing tiles as part of the install.
+- **A region you installed before** gets them when OrthoStreamXP starts, for example the first start after an update.
+  Home shows the progress in the notice **Adding the tiles AutoOrtho lacks**, then **Tiles AutoOrtho lacks were added**.
+  You can stream meanwhile; X-Plane then sees the new tiles from OrthoStreamXP's next start.
+- **Until they are added**, the region shows **Update available** with the number of tiles, and **Update** downloads
+  only those (about 225 MB for North America, about 2 MB for Australia and the Pacific), even while OrthoStreamXP runs.
+
+The region's details on the **Packages** page list these tiles, for example *+ 9 tiles AutoOrtho lacks, from OrthoStreamXP*.
+
+These tiles never replace a file of AutoOrtho's. If they cannot be downloaded, the region is installed without them, and
+they are added at a later start.
+
 ## Where they go
 
 Each region is installed as a package of its own in the **scenery packages folder** chosen in [Settings › Folders](settings.md#folders). If you download one during the setup and have not chosen a folder yet, it goes to `OrthoStreamXP\Base Packages` in your user folder, and that folder becomes your scenery packages folder.
@@ -56,10 +74,10 @@ A square of a downloaded mesh no longer shows X-Plane's own roads, forests and b
 - **Install** starts the download. While one region downloads, the others wait: one install runs at a time. The progress and speed show under the region.
 - **Stop** stops it. What was downloaded is kept: **Resume** continues from there, even after OrthoStreamXP was closed.
 - A region is used from OrthoStreamXP's next start, and never half-installed: it appears in your packages folder only when all of it is there.
-- When a newer release comes out, the region says **Update available**. Updating downloads it again in full.
+- When a newer release comes out, the region says **Update available**. Updating downloads it again in full. (An update that only adds the [tiles AutoOrtho lacks](#tiles-autoortho-lacks) downloads just those.)
 - **Delete** removes the region and its roads, forests and buildings. Another region's stay.
 - To fly without a region for a while, without deleting it, switch it off under **Scenery packages** on the Home page (see [Flying › Leaving a package out](flying.md#leaving-a-package-out)).
 
-You can install a new region while OrthoStreamXP runs. Updating or deleting a region needs OrthoStreamXP stopped, because X-Plane has its files open while it runs.
+You can install a new region while OrthoStreamXP runs. Updating or deleting a region needs OrthoStreamXP stopped, because X-Plane has its files open while it runs. Adding the tiles AutoOrtho lacks is the exception: it only adds files, so it works while OrthoStreamXP runs.
 
 Next: [X-Plane Custom Scenery](custom-scenery.md)
