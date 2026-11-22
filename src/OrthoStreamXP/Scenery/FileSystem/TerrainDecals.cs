@@ -19,6 +19,8 @@ namespace OrthoStreamXP.Scenery;
 internal sealed class TerrainDecals
 {
     public const int Full = 100;
+    /// <summary>The lowest strength the ground-detail setting allows (and its default).</summary>
+    public const int Min = 30;
     /// <summary>The package folder the faded decal textures are served under (it exists only in the mount).</summary>
     public const string Folder = "orthostreamxp_decals";
     private const string LibraryPrefix = "lib/g10/decals/";

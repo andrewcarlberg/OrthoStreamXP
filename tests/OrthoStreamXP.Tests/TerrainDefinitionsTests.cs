@@ -187,12 +187,15 @@ public sealed class TerrainDefinitionsTests : IDisposable
     }
 
     [Fact]
-    public void The_ground_detail_setting_is_0_unless_raised_and_stays_within_0_to_100()
+    public void The_ground_detail_setting_is_30_unless_raised_and_stays_within_30_to_100()
     {
         MountSettings Parse(params string[] extra) => MountSettings.FromValues(TestSettings.Of(
             [$"source = {_tree.PathOf("source")}", $"cache = {_tree.PathOf("cache")}", $"mountpoint = {_tree.PathOf("mount")}", .. extra]));
-        Assert.Equal(0, Parse().GroundDetail);
+        Assert.Equal(30, Parse().GroundDetail);
         Assert.Equal(40, Parse("ground-detail = 40").GroundDetail);
+        Assert.Equal(100, Parse("ground-detail = 100").GroundDetail);
+        Assert.Equal(30, Parse("ground-detail = 0").GroundDetail);
+        Assert.Equal(30, Parse("ground-detail = 29").GroundDetail);
         Assert.Throws<SettingsException>(() => Parse("ground-detail = 101"));
         Assert.Throws<SettingsException>(() => Parse("ground-detail = -1"));
     }

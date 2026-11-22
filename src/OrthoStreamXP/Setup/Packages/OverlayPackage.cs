@@ -39,6 +39,36 @@ internal sealed class OverlayPackage(string packagesFolder)
         Save(record);
     }
 
+    /// <summary>
+    /// Moves more files of a region (the tiles AutoOrtho lacks) from <paramref name="staging"/> into the package, beside
+    /// those it placed already. A file any region placed is kept, unless it is this region's and one of
+    /// <paramref name="replaceable"/> (placed by an earlier version of the same tiles). A file no region placed is taken
+    /// over: one left by an earlier try that stopped before its record was saved.
+    /// </summary>
+    /// <returns>The files placed (added or replaced).</returns>
+    public IReadOnlyList<string> Append(string regionId, string staging, IReadOnlyList<string> files, IReadOnlySet<string> replaceable)
+    {
+        Dictionary<string, List<string>> record = Load();
+        var owner = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (region, owned) in record)
+            foreach (string file in owned)
+                owner[file] = region;
+        var placed = new List<string>();
+        foreach (string file in files)
+        {
+            if (owner.TryGetValue(file, out string? other) && !(other == regionId && replaceable.Contains(file))) continue;
+            string target = Path.Join(Folder, file);
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Move(Path.Join(staging, file), target, overwrite: true);
+            placed.Add(file);
+        }
+        List<string> added = [.. placed.Where(f => !owner.ContainsKey(f))];
+        if (added.Count == 0) return placed;
+        record[regionId] = [.. record.GetValueOrDefault(regionId) ?? [], .. added];
+        Save(record);
+        return placed;
+    }
+
     /// <summary>Deletes the files a region placed; the package goes with its last region.</summary>
     public void Remove(string regionId)
     {

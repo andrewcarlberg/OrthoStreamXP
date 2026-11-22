@@ -193,10 +193,10 @@
                                 <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
                                     <TextBlock Text="Ground detail" />
                                     <TextBlock Style="{StaticResource Caption}" Margin="0,2,0,0" TextWrapping="Wrap"
-                                               Text="Adds a grass and dirt pattern on top of the photos, seen when you are on the ground or flying low. At 0 % (the default) the ground looks exactly like the photos: clean and sharp. Higher values give the ground more texture up close, but make the photos look grainier. Try it if the ground looks too flat to you during taxi or landing." />
+                                               Text="Adds a grass and dirt pattern on top of the photos, seen when you are on the ground or flying low. At 30 % (the lowest, and the default) the pattern is faint and the photos stay clean and sharp. Higher values give the ground more texture up close, but make the photos look grainier. Try it if the ground looks too flat to you during taxi or landing." />
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                    <Slider Width="200" Minimum="0" Maximum="100" TickFrequency="10" IsSnapToTickEnabled="True" VerticalAlignment="Center"
+                                    <Slider Width="200" Minimum="30" Maximum="100" TickFrequency="10" IsSnapToTickEnabled="True" VerticalAlignment="Center"
                                             Value="{Binding GroundDetail, Delay=400}" AutomationProperties.Name="Ground detail" />
                                     <TextBlock Text="{Binding GroundDetailText}" Style="{StaticResource SliderValue}" />
                                 </StackPanel>
