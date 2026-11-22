@@ -46,11 +46,13 @@ Use **Windows Settings › Apps**. OrthoStreamXP asks whether to delete your set
 
 ## Reporting a bug
 
-Open an issue on the project's [GitHub page](https://github.com/flysimdev/OrthoStreamXP/issues) and include:
+Open an issue on the project's [GitHub page](https://github.com/flysimdev/OrthoStreamXP/issues/new/choose) and choose a form: **Bug report** when something fails or X-Plane does not load, **Scenery looks wrong** for blurry or missing photos and wrong colours, or **Feature request** for an idea. The form asks for:
 
 - **What happened:** what you saw, and what you expected instead.
 - **Steps to reproduce:** what you did before the problem appeared, for example the area you were flying over and your quality preset.
-- **Your system:** OrthoStreamXP version (on the About page), Windows version and graphics card.
-- **The session log:** the log file of that session, from `%LOCALAPPDATA%\OrthoStreamXP\logs`.
+- **Your system:** OrthoStreamXP version (on the About page), X-Plane version, Windows version and graphics card.
+- **The session log:** the log file of that session. On the Log page, click **Open log folder** (`%LOCALAPPDATA%\OrthoStreamXP\logs`) and drag the file into the form.
+- **X-Plane's Log.txt**, from your X-Plane folder, for loading problems, freezes and crashes. X-Plane rewrites it at every start, so copy it before you start X-Plane again.
+- **A screenshot and the exact place**, for a scenery problem.
 
 Next: [Questions and answers](faq.md)

@@ -150,12 +150,13 @@ Your settings, cache, and flight history are preserved during normal updates and
 
 To uninstall, use **Windows Settings > Apps**. OrthoStreamXP asks whether to delete your settings and downloaded scenery as well; if you choose No, they stay for a later install.
 
-If you encounter a problem, please open an issue in the project's GitHub repository and include:
+If you encounter a problem, please [open an issue](https://github.com/flysimdev/OrthoStreamXP/issues/new/choose) and choose the form that fits: **Bug report**, **Scenery looks wrong**, or **Feature request**. The forms ask for:
 
 - **What happened:** what you saw, and what you expected instead.
 - **Steps to reproduce:** what you did before the problem appeared (for example, the area you were flying over and your quality preset).
-- **Diagnostic info:** your OrthoStreamXP version, Windows version, and graphics card.
-- **The session log:** the log file of the session where the problem occurred, from `%LOCALAPPDATA%\OrthoStreamXP\logs`.
+- **Diagnostic info:** your OrthoStreamXP version, X-Plane version, Windows version, and graphics card.
+- **The session log:** the log file of the session where the problem occurred, from `%LOCALAPPDATA%\OrthoStreamXP\logs`, and X-Plane's `Log.txt` for loading problems and crashes.
+- **A screenshot and the exact place** for a scenery problem.
 
 Feedback is especially valuable during beta development.
 
