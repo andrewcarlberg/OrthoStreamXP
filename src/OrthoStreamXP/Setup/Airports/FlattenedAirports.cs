@@ -7,7 +7,8 @@ namespace OrthoStreamXP.Setup;
 /// The scenery package OrthoStreamXP keeps its flattened airports in: Custom Scenery\OrthoStreamXP Flattened Airports, with an
 /// apt.dat holding a copy of each airport plus "1302 flatten 1". X-Plane uses an airport's definition from the highest package
 /// that lists it, so the package is kept above the airports' own ones in scenery_packs.ini (a new entry goes just above the first
-/// airport's package, not above unrelated ones); their files are never changed.
+/// airport's package, not above unrelated ones); their files are never changed. The airports' 3D comes along (see
+/// <see cref="FlattenedBuildings"/>): X-Plane would hide it otherwise.
 /// Undoing takes the airport out again, and the package goes when its last airport does.
 /// </summary>
 internal sealed class FlattenedAirports(string xplane)
@@ -21,16 +22,21 @@ internal sealed class FlattenedAirports(string xplane)
     private string AptDat => Path.Join(NavData, "apt.dat");
     private SceneryPackList List => new(CustomScenery);
 
+    /// <summary>The flattened airports' buildings.</summary>
+    public FlattenedBuildings Buildings => new(Folder);
+
     /// <summary>The airports flattened so far.</summary>
     public IReadOnlyList<AirportBlock> Read() => File.Exists(AptDat) ? AirportBlock.Split(File.ReadAllText(AptDat)) : [];
 
     /// <summary>
-    /// Adds (or replaces) <paramref name="airport"/>, and makes sure the package is listed, enabled, above
-    /// <paramref name="sourceEntry"/> (the scenery_packs.ini entry of the package the airport comes from).
+    /// Adds (or replaces) <paramref name="airport"/> with its 3D from <paramref name="buildings"/> (its package's DSF files that
+    /// have it), and makes sure the package is listed, enabled, above <paramref name="sourceEntry"/> (the scenery_packs.ini entry
+    /// of the package the airport comes from).
     /// </summary>
-    public void Add(AirportBlock airport, string sourceEntry)
+    public void Add(AirportBlock airport, string sourceEntry, IReadOnlyList<string> buildings)
     {
         Write([.. Read().Where(b => !b.Ident.Equals(airport.Ident, StringComparison.OrdinalIgnoreCase)), airport]);
+        Buildings.Set(airport.Ident, buildings);
         PlaceAbove(sourceEntry);
     }
 
@@ -40,7 +46,11 @@ internal sealed class FlattenedAirports(string xplane)
         IReadOnlyList<AirportBlock> airports = Read();
         AirportBlock[] kept = [.. airports.Where(b => !b.Ident.Equals(ident, StringComparison.OrdinalIgnoreCase))];
         if (kept.Length == airports.Count) return false;
-        if (kept.Length > 0) Write(kept);
+        if (kept.Length > 0)
+        {
+            Write(kept);
+            Buildings.Remove(ident);
+        }
         else Delete();
         return true;
     }
@@ -82,6 +92,7 @@ internal sealed class FlattenedAirports(string xplane)
     /// <summary>Removes the package's own file and folders (anything else put there is left, with its folder) and its list entry.</summary>
     private void Delete()
     {
+        Buildings.Delete();
         File.Delete(AptDat);
         foreach (string folder in new[] { NavData, Folder })
             if (Directory.Exists(folder) && !Directory.EnumerateFileSystemEntries(folder).Any()) Directory.Delete(folder);
