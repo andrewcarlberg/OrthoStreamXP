@@ -1,0 +1,97 @@
+<UserControl x:Class="OrthoStreamXP.Gui.AirportsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:ClassModifier="internal">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="36,28,36,36" MaxWidth="900">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Airports" Style="{StaticResource PageTitle}" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="Open the folder" Command="{Binding OpenFolder}"
+                            ToolTip="The scenery package that holds the flattened airports" />
+                    <Button Content="Refresh" Command="{Binding Refresh}" Margin="8,0,0,0" />
+                </StackPanel>
+            </Grid>
+            <TextBlock Style="{StaticResource PageIntro}"
+                       Text="An airport that sits on a bump or in a hollow of the ground around it can be flattened: X-Plane then levels the terrain under it. OrthoStreamXP puts a copy of the airport, marked to be flattened, in its own scenery package above the airport's scenery; that scenery itself is not changed, and Undo takes the copy out again. X-Plane reads the airports when it starts, so a change shows from its next start." />
+
+            <!-- Custom airports lose their scenery when the flattened copy is above them -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                <TextBlock Style="{StaticResource Icon}" Text="&#xE7BA;" VerticalAlignment="Top" Margin="0,2,10,0"
+                           Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+                <TextBlock TextWrapping="Wrap" MaxWidth="840" Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                           Text="Custom airports cannot be flattened without losing their scenery. In X-Plane's Custom Scenery settings, make sure OrthoStreamXP Flattened Airports is listed below your custom airports." />
+            </StackPanel>
+
+            <!-- Search -->
+            <Grid Width="360" HorizontalAlignment="Left" Margin="0,0,0,12">
+                <TextBox x:Name="SearchBox" Text="{Binding Search, UpdateSourceTrigger=PropertyChanged, Delay=250}" Padding="34,6,10,6"
+                         AutomationProperties.Name="Search for an airport" />
+                <TextBlock Style="{StaticResource Icon}" Text="&#xE721;" FontSize="14" HorizontalAlignment="Left" Margin="12,0,0,0" IsHitTestVisible="False"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <TextBlock Text="ICAO code, name or city" Margin="35,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"
+                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                           Visibility="{Binding Text, ElementName=SearchBox, Converter={StaticResource Visible}, ConverterParameter=Invert}" />
+            </Grid>
+
+            <TextBlock Text="{Binding ListText}" Style="{StaticResource Secondary}" Margin="2,0,0,8" TextWrapping="Wrap"
+                       Visibility="{Binding ListText, Converter={StaticResource Visible}}" />
+            <TextBlock Text="{Binding Message}" Margin="2,0,0,8" TextWrapping="Wrap"
+                       Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                       Visibility="{Binding HasMessage, Converter={StaticResource Visible}}" />
+
+            <ItemsControl ItemsSource="{Binding Rows}" Focusable="False">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource RowCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Ident}" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding Name}" Margin="10,0,0,0" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding Details}" Style="{StaticResource Caption}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding StateText}" Margin="0,4,0,0" TextWrapping="Wrap"
+                                               Visibility="{Binding StateText, Converter={StaticResource Visible}}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource Caption}">
+                                                <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding StateIsWarning}" Value="True">
+                                                        <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding Error}" Margin="0,4,0,0" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                               Visibility="{Binding Error, Converter={StaticResource Visible}}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="Working…" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="0,0,12,0"
+                                               Visibility="{Binding Busy, Converter={StaticResource Visible}}" />
+                                    <Button Content="{Binding FlattenLabel}" Command="{Binding Flatten}" Style="{DynamicResource AccentButtonStyle}"
+                                            Visibility="{Binding ShowFlatten, Converter={StaticResource Visible}}"
+                                            AutomationProperties.Name="{Binding Ident, StringFormat='Flatten {0}'}" />
+                                    <Button Content="Undo" Command="{Binding Undo}" Margin="8,0,0,0"
+                                            Visibility="{Binding ShowUndo, Converter={StaticResource Visible}}"
+                                            ToolTip="Take the flattened copy out: X-Plane uses the airport's own scenery again"
+                                            AutomationProperties.Name="{Binding Ident, StringFormat='Undo the flattening of {0}'}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

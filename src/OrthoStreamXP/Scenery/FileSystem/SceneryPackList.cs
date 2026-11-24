@@ -22,7 +22,7 @@ internal sealed class SceneryPackList(string customScenery)
     public bool SetEnabled(string path, bool enabled) => Change(lines =>
     {
         bool changed = false;
-        for (int i = 0; i < lines.Length; i++)
+        for (int i = 0; i < lines.Count; i++)
         {
             if (SceneryPackEntry.Parse(lines[i]) is not { } entry || entry.Enabled == enabled || !entry.IsAt(path)) continue;
             lines[i] = (entry with { Enabled = enabled }).ToLine();
@@ -38,7 +38,7 @@ internal sealed class SceneryPackList(string customScenery)
     /// </summary>
     public bool MoveTo(string path, int to) => Change(lines =>
     {
-        int[] entries = [.. Enumerable.Range(0, lines.Length).Where(i => SceneryPackEntry.Parse(lines[i]) is not null)];
+        int[] entries = [.. Enumerable.Range(0, lines.Count).Where(i => SceneryPackEntry.Parse(lines[i]) is not null)];
         int from = Array.FindIndex(entries, i => SceneryPackEntry.Parse(lines[i])!.IsAt(path));
         if (from < 0 || to < 0 || to >= entries.Length || from == to) return false;
         string moved = lines[entries[from]];
@@ -48,13 +48,28 @@ internal sealed class SceneryPackList(string customScenery)
         return true;
     });
 
+    /// <summary>
+    /// Adds an enabled entry for <paramref name="path"/> just before the entry at <paramref name="above"/>, so X-Plane gives it
+    /// priority over that one and no other; before the first entry when <paramref name="above"/> is not listed (after the file's
+    /// other lines when it has no entry yet). Returns whether the file changed (not when it already lists the path, or there is no
+    /// file: X-Plane lists a new package first itself when it writes the file).
+    /// </summary>
+    public bool AddAbove(string path, string above) => Change(lines =>
+    {
+        if (lines.Exists(line => SceneryPackEntry.Parse(line)?.IsAt(path) == true)) return false;
+        int at = lines.FindIndex(line => SceneryPackEntry.Parse(line)?.IsAt(above) == true);
+        if (at < 0) at = lines.FindIndex(line => SceneryPackEntry.Parse(line) is not null);
+        lines.Insert(at < 0 ? lines.Count : at, new SceneryPackEntry(path, Enabled: true).ToLine());
+        return true;
+    });
+
     /// <summary>Reads the file's lines, lets <paramref name="edit"/> change them in place, and writes them back if it did.</summary>
-    private bool Change(Func<string[], bool> edit)
+    private bool Change(Func<List<string>, bool> edit)
     {
         if (!File.Exists(FilePath)) return false;
         string text = File.ReadAllText(FilePath);
         string newline = text.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
-        string[] lines = text.ReplaceLineEndings("\n").TrimEnd('\n').Split('\n');
+        List<string> lines = [.. text.ReplaceLineEndings("\n").TrimEnd('\n').Split('\n')];
         if (!edit(lines)) return false;
         AtomicFile.Write(FilePath, Encoding.UTF8.GetBytes(string.Join(newline, lines) + newline));
         return true;
