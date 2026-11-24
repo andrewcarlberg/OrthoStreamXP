@@ -35,6 +35,8 @@ Leave the photo scenery near the end, below airports and overlays. With **Keep t
 
 When you click **Start**, OrthoStreamXP adds its packages to the end of the list. When you click **Stop**, it takes out again the ones it added, because their folders are gone from `Custom Scenery` until the next start. A package that was already in the list before the start (for example from an earlier version of OrthoStreamXP) stays where it is.
 
+**OrthoStreamXP Flattened Airports** is different: the [Airports](airports.md) page adds it when you flatten an airport, and it stays in the list whether OrthoStreamXP runs or not, until you undo the last flattened airport. Keep it below your custom airports.
+
 To leave one of your own scenery packages out of OrthoStreamXP's photo scenery, use its switch under **Scenery packages** on the Home page instead (see [Flying › Leaving a package out](flying.md#leaving-a-package-out)).
 
-Next: [Troubleshooting](troubleshooting.md)
+Next: [Airports](airports.md)
