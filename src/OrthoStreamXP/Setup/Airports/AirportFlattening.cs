@@ -9,7 +9,10 @@ internal enum FlattenState
     FlattenedByScenery,
     /// <summary>Flattened by OrthoStreamXP; can be undone.</summary>
     Flattened,
-    /// <summary>Flattened by OrthoStreamXP, but its scenery changed since: the copy holds the old layout.</summary>
+    /// <summary>
+    /// Flattened by OrthoStreamXP, but its scenery changed since (the copy holds the old layout), or the copy was made without the
+    /// airport's buildings (before OrthoStreamXP copied them).
+    /// </summary>
     Outdated,
 }
 
@@ -54,8 +57,10 @@ internal sealed class AirportFlattening(string xplane, AirportCatalog catalog)
     {
         if (airport.Source is not { } source) throw new InvalidOperationException($"{airport.Ident} has no scenery to take it from.");
         AirportBlock block = AptDatReader.ReadBlock(source.Source.AptDat, source.Record);
-        _package.Add(block.Flattened(), source.Source.EntryPath);
-        Log.Info($"Flattened {airport.Ident} ({airport.Name}), from {source.Source.Name}, in {FlattenedAirports.PackageName}");
+        IReadOnlyList<string> buildings = AirportDsfFinder.Find(Path.GetDirectoryName(source.Source.AptDat)!, block);
+        _package.Add(block.Flattened(), source.Source.EntryPath, buildings);
+        Log.Info($"Flattened {airport.Ident} ({airport.Name}), from {source.Source.Name}, in {FlattenedAirports.PackageName}"
+                 + (buildings.Count > 0 ? $", with its buildings from {string.Join(", ", buildings.Select(Path.GetFileName))}" : ""));
         return airport with { State = FlattenState.Flattened, InEffect = _package.IsAbove(source.Source.EntryPath) };
     }
 
@@ -76,7 +81,8 @@ internal sealed class AirportFlattening(string xplane, AirportCatalog catalog)
         FlattenState state;
         try
         {
-            state = AptDatReader.ReadBlock(airport.Source.AptDat, record).Flattened().SameAs(copy) ? FlattenState.Flattened : FlattenState.Outdated;
+            state = AptDatReader.ReadBlock(airport.Source.AptDat, record).Flattened().SameAs(copy) && _package.Buildings.Knows(record.Ident)
+                ? FlattenState.Flattened : FlattenState.Outdated;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or FormatException)
         {

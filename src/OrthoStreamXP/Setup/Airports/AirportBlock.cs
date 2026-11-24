@@ -50,6 +50,42 @@ internal sealed class AirportBlock
         return new AirportBlock([.. lines], Ident, Name);
     }
 
+    /// <summary>
+    /// The area its runways, helipads, pavement, start positions, signs and datum span, in degrees (south, west, north, east);
+    /// null when no line places it.
+    /// </summary>
+    public (double South, double West, double North, double East)? Area()
+    {
+        double south = double.MaxValue, west = double.MaxValue, north = double.MinValue, east = double.MinValue;
+        void Add(string lat, string lon)
+        {
+            if (!double.TryParse(lat, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double y)
+                || !double.TryParse(lon, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double x)
+                || Math.Abs(y) > 90 || Math.Abs(x) > 180) return;
+            (south, north, west, east) = (Math.Min(south, y), Math.Max(north, y), Math.Min(west, x), Math.Max(east, x));
+        }
+
+        string? datumLat = null, datumLon = null;
+        foreach (string line in _lines)
+        {
+            string[] p = line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            if (p.Length == 0) continue;
+            switch (p[0])
+            {
+                case "100" when p.Length > 19: Add(p[9], p[10]); Add(p[18], p[19]); break; // runway ends
+                case "101" when p.Length > 8: Add(p[4], p[5]); Add(p[7], p[8]); break; // water runway ends
+                case "102" when p.Length > 3: Add(p[2], p[3]); break; // helipad
+                case "14" or "15" or "19" or "20" or "1300" or "111" or "112" or "113" or "114" or "115" or "116" when p.Length > 2:
+                    Add(p[1], p[2]); break; // viewpoint, start, windsock, sign, start location, pavement nodes
+                case "21" when p.Length > 3: Add(p[2], p[3]); break; // lighting
+                case "1302" when p.Length > 2 && p[1] == "datum_lat": datumLat = p[2]; break;
+                case "1302" when p.Length > 2 && p[1] == "datum_lon": datumLon = p[2]; break;
+            }
+        }
+        if (datumLat is not null && datumLon is not null) Add(datumLat, datumLon);
+        return south <= north ? (south, west, north, east) : null;
+    }
+
     /// <summary>Whether both hold the same lines.</summary>
     public bool SameAs(AirportBlock other) => _lines.SequenceEqual(other._lines, StringComparer.Ordinal);
 

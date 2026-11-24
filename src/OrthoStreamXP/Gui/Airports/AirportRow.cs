@@ -44,7 +44,7 @@ internal sealed class AirportRow : ObservableObject
     public string? StateText => Airport.State switch
     {
         FlattenState.FlattenedByScenery => "Already flattened by its own scenery",
-        FlattenState.Outdated => "Flattened, but its scenery changed since: flatten it again to take the new layout",
+        FlattenState.Outdated => "Flattened, but the copy is out of date (its scenery changed, or it was made without the buildings): flatten it again",
         FlattenState.Flattened when !Airport.InEffect =>
             $"Flattened, but X-Plane uses {Airport.Source?.Source.Name}'s copy: it is higher in the scenery list, or {FlattenedAirports.PackageName} is switched off. Flatten it again to fix that",
         FlattenState.Flattened => "Flattened by OrthoStreamXP",
