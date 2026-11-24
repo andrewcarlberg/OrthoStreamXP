@@ -12,6 +12,7 @@
         <DataTemplate DataType="{x:Type gui:CacheViewModel}"><gui:CacheView /></DataTemplate>
         <DataTemplate DataType="{x:Type gui:PackagesViewModel}"><gui:PackagesView /></DataTemplate>
         <DataTemplate DataType="{x:Type gui:SceneryViewModel}"><gui:SceneryView /></DataTemplate>
+        <DataTemplate DataType="{x:Type gui:AirportsViewModel}"><gui:AirportsView /></DataTemplate>
         <DataTemplate DataType="{x:Type gui:LogViewModel}"><gui:LogView /></DataTemplate>
         <DataTemplate DataType="{x:Type gui:AboutViewModel}"><gui:AboutView /></DataTemplate>
         <DataTemplate DataType="{x:Type gui:SetupViewModel}"><gui:SetupView /></DataTemplate>

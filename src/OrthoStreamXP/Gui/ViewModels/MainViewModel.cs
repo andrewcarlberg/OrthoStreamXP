@@ -71,6 +71,7 @@ internal sealed class MainViewModel : ObservableObject
         Cache = new CacheViewModel(this);
         Packages = new PackagesViewModel(Mount, Preferences, MeshHttp, MeshInstalls, PackagesFolder);
         Scenery = new SceneryViewModel(Mount, () => SettingsDocument.Load(SettingsDocument.DefaultPath).Get("xplane"));
+        Airports = new AirportsViewModel(Mount, () => SettingsDocument.Load(SettingsDocument.DefaultPath).Get("xplane"));
         About = new AboutViewModel();
         Navigation =
         [
@@ -79,6 +80,7 @@ internal sealed class MainViewModel : ObservableObject
             new NavItem("Cache", "", Cache),
             new NavItem("Packages", "", Packages),
             new NavItem("X-Plane Custom Scenery", "", Scenery),
+            new NavItem("Airports", "", Airports),
             new NavItem("Log", "", LogPage),
             new NavItem("About", "", About),
         ];
@@ -105,6 +107,8 @@ internal sealed class MainViewModel : ObservableObject
     public InstallSlot MeshInstalls { get; } = new();
     /// <summary>X-Plane's scenery_packs.ini, to switch packages on or off.</summary>
     public SceneryViewModel Scenery { get; }
+    /// <summary>Flattens the terrain under an airport, one at a time, and undoes it.</summary>
+    public AirportsViewModel Airports { get; }
     public LogViewModel LogPage { get; }
     public AboutViewModel About { get; }
     public IReadOnlyList<NavItem> Navigation { get; }
