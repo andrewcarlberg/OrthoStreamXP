@@ -46,6 +46,10 @@ It does not change it. The water, the coastlines and the sea and inland water co
 
 Yes. Install SimHeaven the way its instructions say, and OrthoStreamXP as this guide describes. OrthoStreamXP puts its packages at the end of `scenery_packs.ini`, below SimHeaven, airports and other overlays, so they stay on top of the photos.
 
+### An airport sits on a hill or in a dip. Can I fix it?
+
+Yes, for X-Plane's own airports. The ground comes from your scenery packages, and it is more detailed than X-Plane's, so a few airports no longer sit level on it. Find the airport on the [Airports](airports.md) page and click **Flatten**: X-Plane levels the ground under it from its next start. **Undo** puts it back. Custom airport scenery should not be flattened this way: it loses its buildings.
+
 ### Is there a Mac or Linux version?
 
 No, OrthoStreamXP runs on Windows 10 and 11 only. There are no plans for a Mac version at the moment; that may change if enough people ask for it.
